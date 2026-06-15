@@ -16,8 +16,9 @@ name: Daily AI news pipeline
 
 on:
   schedule:
-    - cron: "0 6 * * *"   # 06:00 UTC daily (~08:00 Spain in summer)
-  workflow_dispatch: {}    # allow manual runs from the Actions tab
+    - cron: "0 6 * * *"    # 06:00 UTC (~08:00 Spain summer) — morning briefing
+    - cron: "0 16 * * *"   # 16:00 UTC (~18:00 Spain summer) — afternoon briefing
+  workflow_dispatch: {}     # allow manual runs from the Actions tab
 
 concurrency:
   group: daily-pipeline
