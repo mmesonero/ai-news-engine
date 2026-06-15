@@ -1,0 +1,61 @@
+name: Daily AI news pipeline
+
+# Runs the ingest → dedup → classify → enrich → Telegram pipeline once a day
+# in the cloud (no PC needed). Uses a managed Postgres (Supabase/Neon) via the
+# DATABASE_URL secret, OpenAI for transcription/LLM, and Telegram for delivery.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   OPENAI_API_KEY       — OpenAI key
+#   DATABASE_URL         — Supabase/Neon async URL: postgresql+asyncpg://user:pass@host:5432/db
+#   SYNC_DATABASE_URL    — same DB, sync driver: postgresql+psycopg2://user:pass@host:5432/db
+#   TELEGRAM_BOT_TOKEN   — @BotFather token
+#   TELEGRAM_CHAT_ID     — your chat id
+#
+# The managed DB must have the pgvector extension enabled once:
+#   CREATE EXTENSION IF NOT EXISTS vector;
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # 06:00 UTC daily (~08:00 Spain in summer)
+  workflow_dispatch: {}    # allow manual runs from the Actions tab
+
+concurrency:
+  group: daily-pipeline
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SYNC_DATABASE_URL: ${{ secrets.SYNC_DATABASE_URL }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      # Cloud runner has no spare CPU for local Whisper — use the OpenAI API.
+      TRANSCRIBE_BACKEND: openai
+      OPENAI_TRANSCRIBE_MODEL: gpt-4o-transcribe
+      ENABLE_LOCAL_WHISPER: "false"
+      APP_ENV: prod
+      LOG_LEVEL: INFO
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ffmpeg (audio for transcription)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run DB migrations
+        run: alembic upgrade head
+
+      - name: Run daily pipeline
+        run: python -m app.pipeline.daily

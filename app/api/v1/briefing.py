@@ -64,7 +64,7 @@ async def briefing_daily(
     session: AsyncSession = Depends(db_session),
     hours: int = Query(default=24, ge=1, le=168),
     per_theme: int = Query(default=8, ge=1, le=30),
-    min_tier: str = Query(default="baja", regex="^(alta|media|baja)$"),
+    min_tier: str = Query(default="baja", pattern="^(alta|media|baja)$"),
 ) -> DailyBriefing:
     """Last-N-hours non-noise representatives, grouped by theme, ordered alta→baja."""
     now = datetime.now(timezone.utc)

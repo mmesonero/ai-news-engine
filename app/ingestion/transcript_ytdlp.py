@@ -108,13 +108,50 @@ def fetch_transcript_via_ytdlp(video_id: str, language: str = "en") -> str | Non
         return None
 
 
-# Local Whisper fallback: download audio via yt-dlp (android client bypasses
-# many rate limits) + transcribe with faster-whisper running on CPU. Free,
-# autonomous, portable. Disable via `enable_local_whisper=False` in cloud envs
-# without spare CPU minutes (e.g. GitHub Actions free tier).
+# Audio-transcription fallback: download audio via yt-dlp (android client
+# bypasses many rate limits), then transcribe. Two backends (settings.transcribe_backend):
+#   "openai" → OpenAI transcription API. No CPU; portable; works on GitHub Actions.
+#   "local"  → faster-whisper on CPU. Free but heavy; respects enable_local_whisper.
 
-_AUDIO_MAX_BYTES = 200 * 1024 * 1024  # 200 MB sanity cap
+_AUDIO_MAX_BYTES = 200 * 1024 * 1024       # local backend sanity cap
+_OPENAI_AUDIO_MAX_BYTES = 25 * 1024 * 1024  # OpenAI transcription hard limit (25 MB)
 _FASTER_WHISPER_MODEL: object | None = None  # lazily loaded singleton
+_OPENAI_SYNC_CLIENT: object | None = None
+
+
+def _download_audio(video_id: str, dest_dir: str) -> str | None:
+    """Download the smallest audio track for a video via yt-dlp. Returns the
+    file path, or None on failure."""
+    proxy = os.environ.get("YT_DLP_PROXY")
+    cookies = os.environ.get("YT_DLP_COOKIES_FILE")
+    clients = os.environ.get("YT_DLP_PLAYER_CLIENTS", "android,tv_embedded")
+
+    out_template = os.path.join(dest_dir, "%(id)s.%(ext)s")
+    cmd = [
+        "yt-dlp",
+        f"https://www.youtube.com/watch?v={video_id}",
+        "-f", "worstaudio/worst",
+        "-o", out_template,
+        "--quiet", "--no-warnings", "--no-cache-dir",
+        "--retries", "2",
+        "--extractor-args", f"youtube:player_client={clients}",
+    ]
+    if proxy:
+        cmd.extend(["--proxy", proxy])
+    if cookies:
+        cmd.extend(["--cookies", cookies])
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+    except subprocess.TimeoutExpired:
+        log.warning("transcribe.download_timeout", video=video_id)
+        return None
+    if result.returncode != 0:
+        log.info("transcribe.download_failed", video=video_id, err=(result.stderr or "")[:200])
+        return None
+
+    files = sorted(glob.glob(os.path.join(dest_dir, "*")))
+    return files[0] if files else None
 
 
 def _get_whisper_model():
@@ -133,63 +170,76 @@ def _get_whisper_model():
     return _FASTER_WHISPER_MODEL
 
 
-def fetch_transcript_via_whisper(video_id: str, language: str = "en") -> str | None:
-    """Download audio + transcribe locally via faster-whisper.
-    Returns None when disabled, on download failure, or on transcription failure.
-    No external API calls — fully autonomous and free (CPU time only)."""
-    if not settings.enable_local_whisper:
-        log.info("whisper.disabled", video=video_id)
+def _get_openai_sync_client():
+    global _OPENAI_SYNC_CLIENT
+    if _OPENAI_SYNC_CLIENT is None:
+        from openai import OpenAI
+        _OPENAI_SYNC_CLIENT = OpenAI(api_key=settings.openai_api_key)
+    return _OPENAI_SYNC_CLIENT
+
+
+def _transcribe_openai(audio_path: str, video_id: str) -> str | None:
+    """Transcribe a downloaded audio file via the OpenAI transcription API."""
+    size = os.path.getsize(audio_path)
+    if size > _OPENAI_AUDIO_MAX_BYTES:
+        log.warning("transcribe.openai_too_large", video=video_id, bytes=size)
+        return None
+    try:
+        client = _get_openai_sync_client()
+        with open(audio_path, "rb") as f:
+            resp = client.audio.transcriptions.create(
+                model=settings.openai_transcribe_model,
+                file=f,
+                response_format="text",
+            )
+        text = (resp if isinstance(resp, str) else getattr(resp, "text", "")) or ""
+        text = text.strip()
+        if text:
+            log.info("transcribe.openai_ok", video=video_id, model=settings.openai_transcribe_model)
+        return text or None
+    except Exception as e:
+        log.warning("transcribe.openai_failed", video=video_id, err=str(e)[:200])
         return None
 
-    proxy = os.environ.get("YT_DLP_PROXY")
-    cookies = os.environ.get("YT_DLP_COOKIES_FILE")
-    clients = os.environ.get("YT_DLP_PLAYER_CLIENTS", "android,tv_embedded")
+
+def _transcribe_local(audio_path: str, video_id: str, language: str) -> str | None:
+    size = os.path.getsize(audio_path)
+    if size > _AUDIO_MAX_BYTES:
+        log.warning("whisper.audio_too_large", video=video_id, bytes=size)
+        return None
+    try:
+        model = _get_whisper_model()
+        segments, _info = model.transcribe(
+            audio_path,
+            language=language if language else None,
+            beam_size=1,
+            vad_filter=True,
+        )
+        text = " ".join(seg.text.strip() for seg in segments).strip()
+        return text or None
+    except Exception as e:
+        log.warning("whisper.transcribe_failed", video=video_id, err=str(e)[:200])
+        return None
+
+
+def fetch_transcript_via_whisper(video_id: str, language: str = "en") -> str | None:
+    """Download audio + transcribe, using the configured backend
+    (settings.transcribe_backend: "openai" | "local" | "none").
+    Returns None when disabled or on any failure."""
+    backend = (settings.transcribe_backend or "openai").lower()
+    if backend == "none":
+        return None
+    if backend == "local" and not settings.enable_local_whisper:
+        log.info("transcribe.local_disabled", video=video_id)
+        return None
+    if backend == "openai" and not settings.openai_api_key:
+        log.info("transcribe.openai_no_key", video=video_id)
+        return None
 
     with tempfile.TemporaryDirectory() as td:
-        out_template = os.path.join(td, "%(id)s.%(ext)s")
-        cmd = [
-            "yt-dlp",
-            f"https://www.youtube.com/watch?v={video_id}",
-            "-f", "worstaudio/worst",
-            "-o", out_template,
-            "--quiet", "--no-warnings", "--no-cache-dir",
-            "--retries", "2",
-            "--extractor-args", f"youtube:player_client={clients}",
-        ]
-        if proxy:
-            cmd.extend(["--proxy", proxy])
-        if cookies:
-            cmd.extend(["--cookies", cookies])
-
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
-        except subprocess.TimeoutExpired:
-            log.warning("whisper.download_timeout", video=video_id)
+        audio_path = _download_audio(video_id, td)
+        if audio_path is None:
             return None
-        if result.returncode != 0:
-            log.info("whisper.download_failed", video=video_id, err=(result.stderr or "")[:200])
-            return None
-
-        files = sorted(glob.glob(os.path.join(td, "*")))
-        if not files:
-            return None
-        audio_path = files[0]
-        size = os.path.getsize(audio_path)
-        if size > _AUDIO_MAX_BYTES:
-            log.warning("whisper.audio_too_large", video=video_id, bytes=size)
-            return None
-
-        try:
-            model = _get_whisper_model()
-            # `language` hint speeds inference. beam_size=1 = fastest, decent quality.
-            segments, _info = model.transcribe(
-                audio_path,
-                language=language if language else None,
-                beam_size=1,
-                vad_filter=True,  # voice-activity detection — skip silences, speeds up
-            )
-            text = " ".join(seg.text.strip() for seg in segments).strip()
-            return text or None
-        except Exception as e:
-            log.warning("whisper.transcribe_failed", video=video_id, err=str(e)[:200])
-            return None
+        if backend == "openai":
+            return _transcribe_openai(audio_path, video_id)
+        return _transcribe_local(audio_path, video_id, language)

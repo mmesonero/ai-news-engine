@@ -7,6 +7,7 @@ import structlog
 
 from app.database import SessionLocal
 from app.logging_config import configure_logging, get_logger
+from app.notify.telegram import send_daily_briefing
 from app.services.classification_service import ClassificationService
 from app.services.cluster_merger import (
     ClusterMergerService,
@@ -70,6 +71,10 @@ async def run_daily_pipeline() -> dict[str, int]:
     async with SessionLocal() as session:
         enriched = await EnrichmentService(session).enrich_pending()
         metrics["enriched_clusters"] = enriched
+
+    # Deliver the daily briefing to Telegram (no-op if not configured).
+    async with SessionLocal() as session:
+        metrics["telegram_sent"] = await send_daily_briefing(session)
 
     log.info("pipeline.done", **metrics)
     structlog.contextvars.clear_contextvars()
