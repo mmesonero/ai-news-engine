@@ -180,7 +180,7 @@ def _render_story(
                 <descripción breve>
                 <link>"""
     emoji = _THEME_EMOJI.get(theme, "🌐")
-    nota = str(score) if score is not None else (tier or "—")
+    nota = f"{score}/100" if score is not None else (tier or "—")
     t = _esc((title or "(sin título)")[:200])
     src = f"  📡{sources}" if sources > 1 else ""
     line1 = f"{emoji} · <b>{nota}</b> · <b>{t}</b>{src}"
