@@ -16,8 +16,10 @@ name: Daily AI news pipeline
 
 on:
   schedule:
-    - cron: "0 6 * * *"    # 06:00 UTC (~08:00 Spain summer) — morning briefing
-    - cron: "0 16 * * *"   # 16:00 UTC (~18:00 Spain summer) — afternoon briefing
+    # GitHub cron is UTC and does NOT follow DST. Times below target Spain SUMMER
+    # (CEST, UTC+2). In winter (CET, UTC+1) they fire one hour earlier local.
+    - cron: "0 5 * * *"    # 05:00 UTC = 07:00 Spain (summer) — morning briefing
+    - cron: "0 16 * * *"   # 16:00 UTC = 18:00 Spain (summer) — afternoon briefing
   workflow_dispatch: {}     # allow manual runs from the Actions tab
 
 concurrency:
