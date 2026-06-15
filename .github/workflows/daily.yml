@@ -40,6 +40,7 @@ jobs:
       TRANSCRIBE_BACKEND: openai
       OPENAI_TRANSCRIBE_MODEL: gpt-4o-transcribe
       ENABLE_LOCAL_WHISPER: "false"
+      RETENTION_DAYS: "30"
       APP_ENV: prod
       LOG_LEVEL: INFO
     steps:
@@ -65,3 +66,6 @@ jobs:
 
       - name: Run daily pipeline
         run: python -m app.pipeline.daily
+
+      - name: Retention cleanup (delete content older than RETENTION_DAYS)
+        run: python -c "import asyncio; from app.pipeline.retention import run_retention; print(asyncio.run(run_retention()))"
