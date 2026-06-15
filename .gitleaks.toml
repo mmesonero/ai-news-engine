@@ -1,0 +1,19 @@
+# Gitleaks config — uses the bundled default ruleset plus our allow-list.
+# Default rules already cover: OpenAI keys (sk-...), Google API keys (AIza...),
+# AWS, GitHub, Slack, Stripe, JWTs, generic high-entropy strings.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Things that look like secrets but are not"
+paths = [
+    '''\.env\.example$''',     # template file with placeholders
+    '''\.gitleaks\.toml$''',
+    '''ARCHITECTURE\.md$''',
+    '''README\.md$''',
+]
+regexes = [
+    '''sk-replace-me''',         # placeholder in .env.example
+    '''AIza\.\.\.''',            # placeholder pattern
+]

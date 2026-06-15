@@ -1,0 +1,38 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ai
+      POSTGRES_PASSWORD: ai
+      POSTGRES_DB: ai_news
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai -d ai_news"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      # Reads from the host's environment at `docker compose up` time.
+      # No file in the project stores the key.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY is not set in your shell. See SECURITY.md.}
+    ports:
+      # Bind to loopback only — the API has no auth and exposes destructive
+      # admin endpoints; do not publish it on all interfaces.
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./:/app
+      - whisper_cache:/root/.cache/huggingface  # persist faster-whisper model
+
+volumes:
+  db_data:
+  whisper_cache:

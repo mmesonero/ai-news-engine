@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI News Intelligence Engine</title>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --panel: #141414;
+    --panel-2: #1c1c1c;
+    --border: #2a2a2a;
+    --text: #e6e6e6;
+    --muted: #888;
+    --accent: #4ade80;
+    --warn: #fbbf24;
+    --noise: #ef4444;
+    --link: #60a5fa;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px; line-height: 1.5; }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { padding: 24px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  header h1 { font-size: 18px; margin: 0; letter-spacing: -0.01em; }
+  header h1 span { color: var(--muted); font-weight: 400; }
+  .nav { display: flex; gap: 18px; font-size: 14px; }
+  .nav a { color: var(--muted); }
+  .nav a:hover { color: var(--text); }
+  main { max-width: 1280px; margin: 0 auto; padding: 32px; }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 32px 0 12px; }
+  h2:first-child { margin-top: 0; }
+
+  /* Stats grid */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .stat .label { font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.08em; }
+  .stat .value { font-size: 28px; font-weight: 600; margin-top: 4px; letter-spacing: -0.02em; }
+  .stat.warn .value { color: var(--warn); }
+  .stat.noise .value { color: var(--noise); }
+  .stat.ok .value { color: var(--accent); }
+
+  /* Cards */
+  .cards { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; }
+  .card:hover { background: var(--panel-2); }
+  .card h3 { margin: 0 0 8px; font-size: 15px; line-height: 1.35; font-weight: 600; }
+  .card .meta { font-size: 12px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+  .card .meta .pill { background: #1f1f1f; border: 1px solid var(--border); padding: 2px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; }
+  .card .meta .pill.score { color: var(--accent); border-color: #14532d; }
+  .card .meta .pill.source { color: #d4d4d4; }
+  .card .meta .pill.video { background: #2d1a1a; border-color: #5a1f1f; color: #ff7a7a; }
+  .card .meta .pill.date { color: var(--muted); }
+  .card .meta .pill.confirm { background: #1b2a4a; border-color: #2a4373; color: #93c5fd; font-weight: 600; }
+  .card .meta .pill.boosted { background: #2a1a4a; border-color: #4a2d8a; color: #c4a3ff; font-weight: 600; }
+  .card .summary { color: #c7c7c7; font-size: 13.5px; }
+  .card .hooks { margin-top: 10px; }
+  .card .hooks li { margin: 4px 0; color: #d4d4d4; font-size: 13.5px; }
+
+  .empty { color: var(--muted); padding: 16px; background: var(--panel); border: 1px dashed var(--border); border-radius: 8px; font-size: 13px; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; }
+  .col { flex: 1 1 420px; min-width: 0; }
+
+  /* Loading state */
+  .skeleton { background: linear-gradient(90deg, #1a1a1a 0%, #232323 50%, #1a1a1a 100%); background-size: 200% 100%; animation: pulse 1.4s ease-in-out infinite; border-radius: 4px; height: 16px; }
+  @keyframes pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+  /* Toolbar */
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  button { background: var(--panel); border: 1px solid var(--border); color: var(--text); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-family: inherit; }
+  button:hover { background: var(--panel-2); border-color: #3a3a3a; }
+  button:active { transform: translateY(1px); }
+  .status { font-size: 12px; color: var(--muted); }
+  .status.ok::before { content: "● "; color: var(--accent); }
+  .status.err::before { content: "● "; color: var(--noise); }
+
+  /* Filters */
+  .filters { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; }
+  .filters label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .filters select, .filters input[type="number"], .filters input[type="text"] {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 5px 8px; border-radius: 5px; font-family: inherit; font-size: 13px;
+    min-width: 0;
+  }
+  .filters select:focus, .filters input:focus { outline: none; border-color: #3a3a3a; }
+  .filters input[type="checkbox"] { accent-color: var(--accent); }
+  .filters .grow { flex: 1; min-width: 180px; }
+  .filters .reset { color: var(--muted); padding: 4px 10px; }
+  .filters .count { color: var(--muted); font-size: 12px; margin-left: auto; }
+
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 32px 16px 48px; }
+  code { background: #1a1a1a; padding: 1px 6px; border-radius: 4px; font-size: 12.5px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>AI News Intelligence Engine <span>· dashboard</span></h1>
+  <nav class="nav">
+    <a href="/docs">API docs</a>
+    <a href="/api/v1/stats">/stats</a>
+    <a href="/api/v1/trending">/trending</a>
+    <a href="/api/v1/linkedin-ideas">/linkedin-ideas</a>
+  </nav>
+</header>
+
+<main>
+  <div class="toolbar">
+    <button id="refresh">↻ Refrescar</button>
+    <button id="runPipeline">▶ Lanzar pipeline ahora</button>
+    <span id="status" class="status">cargando...</span>
+  </div>
+
+  <div class="filters">
+    <label>Periodo
+      <select id="f-window">
+        <option value="24">Últimas 24 h</option>
+        <option value="72" selected>Últimas 72 h</option>
+        <option value="168">Últimos 7 días</option>
+        <option value="720">Últimos 30 días</option>
+      </select>
+    </label>
+    <label>Score mínimo
+      <input id="f-score" type="number" min="0" max="100" step="5" value="60" style="width: 60px;" title="LinkedIn potential mínimo" />
+    </label>
+    <label>Impacto mín
+      <input id="f-impact" type="number" min="0" max="100" step="5" value="60" style="width: 60px;" title="Importancia mínima del cluster en trending" />
+    </label>
+    <label>Fuente
+      <select id="f-source"><option value="">Todas</option></select>
+    </label>
+    <label>Tipo
+      <select id="f-type">
+        <option value="">Todos</option>
+        <option value="youtube">🎥 Solo videos</option>
+        <option value="rss">📰 Solo RSS</option>
+        <option value="html">🌐 Solo web</option>
+      </select>
+    </label>
+    <label>Buscar
+      <input id="f-q" type="text" placeholder="palabra clave..." class="grow" />
+    </label>
+    <button class="reset" id="f-reset">Limpiar</button>
+    <span id="filter-count" class="count"></span>
+  </div>
+
+  <h2>⭐ Top 10 de la semana — solo lo importante</h2>
+  <div id="weekly-top" class="cards"></div>
+
+  <h2>Resumen</h2>
+  <div id="stats" class="stats"></div>
+
+  <div class="row">
+    <div class="col">
+      <h2>🚀 LinkedIn ideas (top score)</h2>
+      <div id="linkedin" class="cards"></div>
+    </div>
+    <div class="col">
+      <h2>🔥 Trending — últimas 72 h</h2>
+      <div id="trending" class="cards"></div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  Pipeline diario · 6:00 UTC · retention 30 días · datos locales
+</footer>
+
+<script>
+const $ = (sel) => document.querySelector(sel);
+const fmt = (n) => (n ?? 0).toLocaleString('es-ES');
+const trunc = (s, n) => s && s.length > n ? s.slice(0, n - 1).trim() + '…' : (s ?? '');
+const setStatus = (msg, kind = '') => { const el = $('#status'); el.className = 'status ' + kind; el.textContent = msg; };
+
+async function jget(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
+  return r.json();
+}
+
+// source_id → {name, type} map (loaded once, refreshed when /sources changes)
+let SOURCES = {};
+async function loadSources() {
+  const list = await jget('/api/v1/sources');
+  SOURCES = Object.fromEntries(list.map(s => [s.id, { name: s.name, type: s.type, group: s.group_name }]));
+  // Populate the source dropdown (preserve current selection).
+  // For sources sharing a group_name, render an <optgroup> with a
+  // "[all in group]" entry plus the individual children.
+  const sel = $('#f-source');
+  const current = sel.value;
+  const grouped = {};
+  const ungrouped = [];
+  for (const s of list) {
+    if (s.group_name) {
+      (grouped[s.group_name] ||= []).push(s);
+    } else {
+      ungrouped.push(s);
+    }
+  }
+
+  // Collapsed view: one entry per group (covers all its sources),
+  // plus one entry per ungrouped source. Flat alphabetical list.
+  const entries = [];
+  for (const [groupName, children] of Object.entries(grouped)) {
+    entries.push({ key: groupName, label: `🏢 ${groupName} (${children.length})`, value: `group:${groupName}` });
+  }
+  for (const s of ungrouped) {
+    const icon = TYPE_ICON[s.type] || '📄';
+    entries.push({ key: s.name, label: `${icon} ${s.name}`, value: String(s.id) });
+  }
+  entries.sort((a, b) => a.key.localeCompare(b.key));
+
+  let html = '<option value="">Todas</option>';
+  for (const e of entries) {
+    html += `<option value="${esc(e.value)}">${esc(e.label)}</option>`;
+  }
+  sel.innerHTML = html;
+  sel.value = current;
+}
+
+const TYPE_ICON = { youtube: '🎥', rss: '📰', html: '🌐' };
+const TYPE_LABEL = { youtube: 'video', rss: 'rss', html: 'web' };
+
+function sourcePill(sourceId) {
+  const s = SOURCES[sourceId];
+  if (!s) return '';
+  const icon = TYPE_ICON[s.type] || '📄';
+  const cls = s.type === 'youtube' ? 'pill source video' : 'pill source';
+  return `<span class="${cls}">${icon} ${esc(s.name)}</span>`;
+}
+
+function relativeDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const diffMs = Date.now() - d.getTime();
+  const min = Math.round(diffMs / 60000);
+  if (min < 1) return 'hace segundos';
+  if (min < 60) return `hace ${min} min`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `hace ${hr} h`;
+  const day = Math.round(hr / 24);
+  if (day < 7) return `hace ${day} d`;
+  if (day < 30) return `hace ${day} d`;
+  if (day < 365) {
+    const months = Math.round(day / 30);
+    return `hace ${months} ${months === 1 ? 'mes' : 'meses'}`;
+  }
+  const years = Math.round(day / 365);
+  return `hace ${years} ${years === 1 ? 'año' : 'años'}`;
+}
+
+function fullDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function datePill(iso) {
+  if (!iso) return '';
+  return `<span class="pill date" title="${fullDate(iso)}">📅 ${relativeDate(iso)}</span>`;
+}
+
+async function loadStats() {
+  const s = await jget('/api/v1/stats');
+  const tiles = [
+    ['Fuentes activas', s.sources_active, 'ok'],
+    ['Noticias totales', s.raw_content_total],
+    ['Noticias únicas', s.unique_news, 'ok'],
+    ['Duplicadas', s.duplicates, 'warn'],
+    ['Últimas 24 h', s.raw_content_last_24h],
+    ['Clusters', s.clusters_total],
+    ['Procesadas', s.processed_total],
+    ['Ruido', s.noise_total, 'noise'],
+    ['% Ruido', (s.noise_rate * 100).toFixed(1) + '%', 'warn'],
+  ];
+  $('#stats').innerHTML = tiles.map(([label, value, cls]) =>
+    `<div class="stat ${cls || ''}"><div class="label">${label}</div><div class="value">${fmt(value)}</div></div>`
+  ).join('');
+}
+
+function currentFilters() {
+  const sourceVal = $('#f-source').value;
+  let sourceIds = null;       // null = no source filter; otherwise Set<int>
+  if (sourceVal.startsWith('group:')) {
+    const groupName = sourceVal.slice('group:'.length);
+    sourceIds = new Set(
+      Object.entries(SOURCES)
+        .filter(([, s]) => s.group === groupName)
+        .map(([id]) => +id)
+    );
+  } else if (sourceVal) {
+    sourceIds = new Set([+sourceVal]);
+  }
+  return {
+    window: +$('#f-window').value || 72,
+    score: +$('#f-score').value || 0,
+    impact: +$('#f-impact').value || 0,
+    sourceIds,
+    type: $('#f-type').value || null,
+    q: ($('#f-q').value || '').trim().toLowerCase(),
+  };
+}
+
+function passesFilter(item, f) {
+  const src = item.source || item.representative;
+  if (!src) return false;
+  if (f.sourceIds && !f.sourceIds.has(src.source_id)) return false;
+  if (f.type) {
+    const s = SOURCES[src.source_id];
+    if (!s || s.type !== f.type) return false;
+  }
+  if (f.impact && (item.importance_score ?? src?.processed?.importance_score ?? 0) < f.impact) {
+    return false;
+  }
+  if (f.q) {
+    const hay = ((src.title || '') + ' ' + (item.cluster_topic || '')).toLowerCase();
+    if (!hay.includes(f.q)) return false;
+  }
+  return true;
+}
+
+async function loadLinkedin() {
+  const f = currentFilters();
+  // If a SINGLE source is selected, push it to backend so we don't miss matches
+  // that fall outside the top-N. Groups stay client-side (need multi-id).
+  const singleSource = (f.sourceIds && f.sourceIds.size === 1) ? [...f.sourceIds][0] : null;
+  const url = `/api/v1/linkedin-ideas?limit=100&min_score=${f.score}` +
+    (singleSource ? `&source_id=${singleSource}` : '');
+  const all = await jget(url);
+  const ideas = all.filter(i => passesFilter(i, f)).slice(0, 12);
+  if (!ideas.length) {
+    $('#linkedin').innerHTML = `<div class="empty">
+      No hay ideas que cumplan estos filtros.<br>
+      <span style="color:var(--muted)">
+        ${all.length} ideas con score ≥ ${f.score} disponibles; ninguna pasa los filtros de fuente/tipo/búsqueda.
+        Prueba a relajar filtros (ej. score 50, fuente "Todas") o espera a que el pipeline termine.
+      </span>
+    </div>`;
+    return;
+  }
+  $('#linkedin').innerHTML = ideas.map(i => {
+    const hooks = (i.angles?.hooks ?? []).slice(0, 2).map(h => `<li>${esc(h)}</li>`).join('');
+    return `
+      <div class="card">
+        <h3><a href="${i.source.url}" target="_blank" rel="noopener">${esc(i.source.title)}</a></h3>
+        <div class="meta">
+          <span class="pill score">score ${i.linkedin_potential_score}</span>
+          ${sourcePill(i.source.source_id)}
+          ${datePill(i.source.published_at)}
+          ${i.cluster_id ? `<span class="pill">cluster #${i.cluster_id}</span>` : ''}
+        </div>
+        ${i.source.processed?.cleaned_summary ? `<div class="summary">${esc(trunc(i.source.processed.cleaned_summary, 240))}</div>` : ''}
+        ${hooks ? `<ul class="hooks">${hooks}</ul>` : ''}
+      </div>`;
+  }).join('');
+}
+
+async function loadWeeklyTop() {
+  const items = await jget('/api/v1/weekly-top?days=7&limit=10&min_importance=65');
+  if (!items.length) {
+    $('#weekly-top').innerHTML = `<div class="empty">
+      Aún no hay candidatos de la semana. El filtro exige importance≥70 (industry-shifting).
+      Revisa el pipeline o relaja con <code>?min_importance=60</code> en la API.
+    </div>`;
+    return;
+  }
+  $('#weekly-top').innerHTML = items.map(t => {
+    const rep = t.representative;
+    const isBoosted = t.boosted_score != null && t.importance_score != null && t.boosted_score > t.importance_score;
+    const ds = t.distinct_sources || 1;
+    return `
+      <div class="card">
+        <h3><a href="${rep?.url ?? '#'}" target="_blank" rel="noopener">${esc(t.cluster_topic || rep?.title || 'Sin tema')}</a></h3>
+        <div class="meta">
+          ${isBoosted
+            ? `<span class="pill boosted" title="${t.importance_score} base + ${t.boosted_score - t.importance_score} boost cross-source">imp ${t.boosted_score} ★</span>`
+            : (t.importance_score != null ? `<span class="pill score">imp ${t.importance_score}</span>` : '')}
+          ${ds > 1 ? `<span class="pill confirm" title="${ds} medios independientes cubrieron esta noticia">✦ ${ds} medios</span>` : ''}
+          <span class="pill">${t.member_count} ${t.member_count === 1 ? 'artículo' : 'artículos'}</span>
+          ${rep ? sourcePill(rep.source_id) : ''}
+          ${rep ? datePill(rep.published_at) : ''}
+        </div>
+        ${rep?.processed?.cleaned_summary ? `<div class="summary">${esc(trunc(rep.processed.cleaned_summary, 280))}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+async function loadTrending() {
+  const f = currentFilters();
+  const singleSource = (f.sourceIds && f.sourceIds.size === 1) ? [...f.sourceIds][0] : null;
+  const url = `/api/v1/trending?window_hours=${f.window}&limit=100` +
+    (singleSource ? `&source_id=${singleSource}` : '');
+  const all = await jget(url);
+  const items = all.filter(t => passesFilter(t, f)).slice(0, 12);
+  if (!items.length) {
+    $('#trending').innerHTML = `<div class="empty">
+      No hay trending con estos filtros en las últimas ${f.window} h.<br>
+      <span style="color:var(--muted)">
+        ${all.length} clusters en ese periodo; ninguno pasa los filtros. Amplía periodo o quita filtros.
+      </span>
+    </div>`;
+    return;
+  }
+  $('#trending').innerHTML = items.map(t => {
+    const rep = t.representative;
+    return `
+      <div class="card">
+        <h3><a href="${rep?.url ?? '#'}" target="_blank" rel="noopener">${esc(t.cluster_topic || rep?.title || 'Sin tema')}</a></h3>
+        <div class="meta">
+          ${t.importance_score != null ? `<span class="pill score">importancia ${t.importance_score}</span>` : ''}
+          <span class="pill">${t.member_count} ${t.member_count === 1 ? 'noticia' : 'noticias'}</span>
+          ${rep ? sourcePill(rep.source_id) : ''}
+          ${rep ? datePill(rep.published_at) : ''}
+        </div>
+        ${rep?.processed?.cleaned_summary ? `<div class="summary">${esc(trunc(rep.processed.cleaned_summary, 220))}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function esc(s) { return (s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function domainOf(url) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } }
+
+async function refreshAll() {
+  setStatus('cargando...');
+  try {
+    // Sources first so the map is ready when LinkedIn/Trending render.
+    await loadSources();
+    await Promise.all([loadStats(), loadWeeklyTop(), loadLinkedin(), loadTrending()]);
+    setStatus(`actualizado ${new Date().toLocaleTimeString('es-ES')}`, 'ok');
+  } catch (e) {
+    setStatus('error: ' + e.message, 'err');
+  }
+}
+
+async function runPipeline() {
+  const btn = $('#runPipeline');
+  btn.disabled = true;
+  setStatus('lanzando pipeline...');
+  try {
+    const r = await fetch('/api/v1/admin/run-pipeline', { method: 'POST' });
+    const j = await r.json();
+    setStatus('pipeline: ' + j.detail, j.status === 'accepted' ? 'ok' : 'err');
+  } catch (e) {
+    setStatus('error lanzando: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+$('#refresh').addEventListener('click', refreshAll);
+$('#runPipeline').addEventListener('click', runPipeline);
+
+// Re-render lists whenever a filter changes (no full reload of stats/sources).
+async function applyFilters() {
+  setStatus('filtrando...');
+  try {
+    await Promise.all([loadLinkedin(), loadTrending()]);
+    setStatus(`filtros aplicados`, 'ok');
+  } catch (e) {
+    setStatus('error: ' + e.message, 'err');
+  }
+}
+
+let filterTimer;
+const debounced = () => { clearTimeout(filterTimer); filterTimer = setTimeout(applyFilters, 200); };
+['f-window', 'f-score', 'f-source', 'f-type', 'f-q'].forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener('change', applyFilters);
+  if (el.tagName === 'INPUT') el.addEventListener('input', debounced);
+});
+
+$('#f-reset').addEventListener('click', () => {
+  $('#f-window').value = '72';
+  $('#f-score').value = '70';
+  $('#f-impact').value = '70';
+  $('#f-source').value = '';
+  $('#f-type').value = '';
+  $('#f-q').value = '';
+  applyFilters();
+});
+
+// Also bind the new impact filter to the change/input events
+['f-impact'].forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener('change', applyFilters);
+  el.addEventListener('input', debounced);
+});
+
+refreshAll();
+// auto-refresh stats every 30s
+setInterval(refreshAll, 30000);
+</script>
+</body>
+</html>

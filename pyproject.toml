@@ -1,0 +1,57 @@
+[project]
+name = "ai-news-engine"
+version = "0.1.0"
+description = "AI News Intelligence Engine — dedupe, cluster, enrich, surface LinkedIn angles."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "SQLAlchemy[asyncio]>=2.0.30",
+    "asyncpg>=0.29",
+    "psycopg2-binary>=2.9",
+    "alembic>=1.13",
+    "pgvector>=0.3",
+    "openai>=1.40",
+    "feedparser>=6.0",
+    "httpx>=0.27",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.2",
+    "youtube-transcript-api>=1.2",
+    "yt-dlp>=2024.10",
+    "faster-whisper>=1.0",
+    "apscheduler>=3.10",
+    "structlog>=24.1",
+    "python-dateutil>=2.9",
+    "tenacity>=8.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+markers = [
+    "network: tests that require outbound network access",
+]
