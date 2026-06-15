@@ -18,6 +18,8 @@ class ContentCluster(Base):
         ForeignKey("raw_content.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # When this story was delivered to Telegram. NULL = not yet sent → eligible.
+    notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
