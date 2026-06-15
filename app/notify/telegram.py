@@ -29,6 +29,18 @@ _TG_API = "https://api.telegram.org/bot{token}/sendMessage"
 _MSG_LIMIT = 3800  # Telegram hard limit is 4096; leave headroom.
 _TIER_EMOJI = {"alta": "🔴", "media": "🟡", "baja": "⚪"}
 
+# Per-theme emoji shown at the start of each story message.
+_THEME_EMOJI = {
+    "nuevo_modelo": "🧠",
+    "herramienta_nueva": "🛠️",
+    "nueva_funcionalidad": "✨",
+    "movimiento_empresarial": "💼",
+    "caso_practico": "📈",
+    "insight_negocio": "💡",
+    "ejemplo_uso": "🧪",
+    "noticia_relevante": "🌐",
+}
+
 
 def _esc(s: str | None) -> str:
     """Escape for Telegram HTML parse_mode."""
@@ -155,20 +167,29 @@ async def _send_one(client: httpx.AsyncClient, text: str) -> bool:
         return False
 
 
-def _render_story(theme: str, title: str, url: str, tier: str, sources: int, summary: str | None) -> str:
-    emoji = _TIER_EMOJI.get(tier, "⚪")
-    label = _esc(THEME_LABEL.get(theme, theme))
-    head = f"{emoji} <b>{label}</b>"
+def _render_story(
+    theme: str,
+    title: str,
+    url: str,
+    score: int | None,
+    tier: str,
+    sources: int,
+    summary: str | None,
+) -> str:
+    """Format: <theme emoji> · <nota> · <título>  [📡N]
+                <descripción breve>
+                <link>"""
+    emoji = _THEME_EMOJI.get(theme, "🌐")
+    nota = str(score) if score is not None else (tier or "—")
     t = _esc((title or "(sin título)")[:200])
-    link = f'<a href="{_esc(url)}">{t}</a>' if url else t
-    meta = []
-    if sources > 1:
-        meta.append(f"📡 {sources} fuentes")
-    meta.append(f"importancia: {tier}")
-    parts = [head, link, " · ".join(meta)]
+    src = f"  📡{sources}" if sources > 1 else ""
+    line1 = f"{emoji} · <b>{nota}</b> · <b>{t}</b>{src}"
+    parts = [line1]
     if summary:
-        parts.append(_esc(summary.strip()[:500]))
-    return "\n".join(parts)
+        parts.append(_esc(summary.strip()[:400]))
+    if url:
+        parts.append(_esc(url))
+    return "\n\n".join(parts)
 
 
 async def send_new_stories(session: AsyncSession, hours: int = 48, max_send: int = 30) -> int:
@@ -220,6 +241,7 @@ async def send_new_stories(session: AsyncSession, hours: int = 48, max_send: int
                 theme=proc.theme or "noticia_relevante",
                 title=raw.title,
                 url=raw.url,
+                score=proc.importance_score,
                 tier=proc.importance_tier or "baja",
                 sources=int(src_count) if src_count else 1,
                 summary=proc.cleaned_summary,
