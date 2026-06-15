@@ -371,19 +371,28 @@ class ClusterMergerService:
         await self.session.execute(delete(ContentCluster).where(ContentCluster.id == from_id))
 
     async def _ensure_representative(self, cluster_id: int) -> None:
-        """Guarantee the cluster's representative_content_id is a current member.
+        """Guarantee the cluster's representative is a current, non-pruned member.
+        A pruned member has no embedding/text, so it must never be the rep.
         Covers merges and retention deletes that can leave it NULL/dangling."""
         cluster = await self.session.get(ContentCluster, cluster_id)
         if cluster is None:
             return
-        members_q = await self.session.execute(
-            select(ClusterItem.raw_content_id).where(ClusterItem.cluster_id == cluster_id)
-        )
-        members = {int(r[0]) for r in members_q.all()}
-        if not members:
+        rows = (
+            await self.session.execute(
+                select(ClusterItem.raw_content_id, RawContent.embedding_pruned)
+                .join(RawContent, RawContent.id == ClusterItem.raw_content_id)
+                .where(ClusterItem.cluster_id == cluster_id)
+            )
+        ).all()
+        if not rows:
             return
-        if cluster.representative_content_id not in members:
-            cluster.representative_content_id = min(members)
+        pruned_ids = {int(r[0]) for r in rows if r[1]}
+        all_ids = sorted(int(r[0]) for r in rows)
+        non_pruned = sorted(i for i in all_ids if i not in pruned_ids)
+        rep = cluster.representative_content_id
+        rep_ok = rep in all_ids and rep not in pruned_ids
+        if not rep_ok:
+            cluster.representative_content_id = non_pruned[0] if non_pruned else all_ids[0]
 
 
 # --------------------------------------------------------------------- #
@@ -408,29 +417,60 @@ async def repair_orphan_representatives(session: AsyncSession) -> int:
     member (e.g. after retention deleted the representative raw row, which the
     FK sets to NULL). Without this such clusters vanish from read endpoints that
     inner-join on the representative."""
-    # Smallest member raw_content_id per cluster.
-    member_rows = await session.execute(
-        select(ClusterItem.cluster_id, func.min(ClusterItem.raw_content_id))
-        .group_by(ClusterItem.cluster_id)
-    )
-    min_member = {int(cid): int(rid) for cid, rid in member_rows.all()}
-
     cluster_rows = await session.execute(
         select(ContentCluster.id, ContentCluster.representative_content_id)
     )
     fixed = 0
     for cid, rep in cluster_rows.all():
-        members_q = await session.execute(
-            select(ClusterItem.raw_content_id).where(ClusterItem.cluster_id == cid)
-        )
-        members = {int(r[0]) for r in members_q.all()}
-        if not members:
-            continue  # empty clusters handled by prune
-        if rep is None or int(rep) not in members:
+        rows = (
+            await session.execute(
+                select(ClusterItem.raw_content_id, RawContent.embedding_pruned)
+                .join(RawContent, RawContent.id == ClusterItem.raw_content_id)
+                .where(ClusterItem.cluster_id == cid)
+            )
+        ).all()
+        if not rows:
+            continue  # empty clusters handled by prune_orphan_clusters
+        pruned_ids = {int(r[0]) for r in rows if r[1]}
+        all_ids = sorted(int(r[0]) for r in rows)
+        non_pruned = sorted(i for i in all_ids if i not in pruned_ids)
+        rep_ok = rep is not None and int(rep) in all_ids and int(rep) not in pruned_ids
+        if not rep_ok:
             cluster = await session.get(ContentCluster, int(cid))
             if cluster is not None:
-                cluster.representative_content_id = min_member[int(cid)]
+                cluster.representative_content_id = non_pruned[0] if non_pruned else all_ids[0]
                 fixed += 1
     if fixed:
         await session.commit()
     return fixed
+
+
+async def prune_duplicate_members(session: AsyncSession) -> int:
+    """Storage saver: for non-representative cluster members, delete the heavy
+    embedding and blank raw_text, marking the row embedding_pruned. The row stays
+    so cross-source counts (distinct_sources) keep working; embed_pending skips it
+    so it's never re-embedded; future dedup compares against representatives."""
+    member_ids_subq = (
+        select(ClusterItem.raw_content_id)
+        .join(ContentCluster, ContentCluster.id == ClusterItem.cluster_id)
+        .where(ClusterItem.raw_content_id != ContentCluster.representative_content_id)
+    )
+    target = (
+        await session.execute(
+            select(RawContent.id)
+            .where(RawContent.id.in_(member_ids_subq))
+            .where(RawContent.embedding_pruned.is_(False))
+        )
+    ).scalars().all()
+    if not target:
+        return 0
+    ids = [int(i) for i in target]
+    await session.execute(delete(Embedding).where(Embedding.raw_content_id.in_(ids)))
+    await session.execute(
+        update(RawContent)
+        .where(RawContent.id.in_(ids))
+        .values(raw_text="", embedding_pruned=True)
+    )
+    await session.commit()
+    log.info("prune.duplicate_members", pruned=len(ids))
+    return len(ids)

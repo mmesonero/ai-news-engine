@@ -11,6 +11,7 @@ from app.notify.telegram import send_new_stories
 from app.services.classification_service import ClassificationService
 from app.services.cluster_merger import (
     ClusterMergerService,
+    prune_duplicate_members,
     prune_orphan_clusters,
     repair_orphan_representatives,
 )
@@ -71,6 +72,11 @@ async def run_daily_pipeline() -> dict[str, int]:
     async with SessionLocal() as session:
         enriched = await EnrichmentService(session).enrich_pending()
         metrics["enriched_clusters"] = enriched
+
+    # Storage saver: drop heavy embedding + raw_text of duplicate members
+    # (rows kept so cross-source counts still work).
+    async with SessionLocal() as session:
+        metrics["members_pruned"] = await prune_duplicate_members(session)
 
     # Deliver one Telegram message per NEW story (no-op if not configured).
     async with SessionLocal() as session:

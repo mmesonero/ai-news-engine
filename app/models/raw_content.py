@@ -3,7 +3,16 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, Text, UniqueConstraint, func
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -28,3 +37,6 @@ class RawContent(Base):
     content_hash: Mapped[str] = mapped_column(Text, nullable=False)
     language: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, server_default="{}")
+    # Set when a duplicate member's embedding + raw_text were dropped to save space.
+    # Stops embed_pending from re-embedding it; the row stays for cross-source counts.
+    embedding_pruned: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")

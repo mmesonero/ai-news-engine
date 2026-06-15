@@ -97,6 +97,7 @@ class RawContentRepository:
             select(RawContent)
             .outerjoin(Embedding, Embedding.raw_content_id == RawContent.id)
             .where(Embedding.id.is_(None))
+            .where(RawContent.embedding_pruned.is_(False))  # don't re-embed pruned dupes
             .order_by(RawContent.id)
             .limit(limit)
         )

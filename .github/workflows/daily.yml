@@ -40,7 +40,7 @@ jobs:
       TRANSCRIBE_BACKEND: openai
       OPENAI_TRANSCRIBE_MODEL: gpt-4o-transcribe
       ENABLE_LOCAL_WHISPER: "false"
-      RETENTION_DAYS: "30"
+      RETENTION_DAYS: "14"   # dedup only needs 14d of history; keeps Neon free tier comfortable
       APP_ENV: prod
       LOG_LEVEL: INFO
     steps:
