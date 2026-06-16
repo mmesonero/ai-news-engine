@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.ai.openai_client import json_completion
-from app.ai.players import detect_players
+from app.ai.players import players_for
 from app.ai.prompts import CLASSIFY_NOISE_V1_SYSTEM, CLASSIFY_NOISE_V1_USER, INJECTION_GUARD
 from app.ai.sanitize import neutralize, wrap
 from app.logging_config import get_logger
@@ -84,12 +84,9 @@ async def backfill_players(session: AsyncSession) -> int:
     )
     changed = 0
     for proc, title in rows.all():
-        # Title + classifier tags only — NOT the summary. The summary carries
-        # passing mentions ("competitors like OpenAI...") that caused false tags;
-        # title + key_topics reflect what the story is actually about.
-        text_parts = [title or ""]
-        text_parts.extend(proc.key_topics or [])
-        players = detect_players(" \n ".join(text_parts))
+        # players_for enforces the fidelity rule: title + key_topics only, never
+        # the summary (passing mentions caused false tags). See app/ai/players.py.
+        players = players_for(title, proc.key_topics)
         if players != (proc.players or []):
             proc.players = players
             changed += 1

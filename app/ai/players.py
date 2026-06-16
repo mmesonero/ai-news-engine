@@ -47,3 +47,17 @@ def detect_players(text: str | None) -> list[str]:
         if any(p.search(low) for p in patterns):
             found.append(player)
     return found
+
+
+def players_for(title: str | None, key_topics: list[str] | None) -> list[str]:
+    """Canonical way to tag a news item with its players.
+
+    IMPORTANT — fidelity rule (do not regress): tag ONLY from the title and the
+    classifier's key_topics (the entities the story is actually ABOUT). NEVER feed
+    the free-text summary here: summaries carry passing mentions like
+    "competitors such as OpenAI and Anthropic", which produced false player tags.
+    This function deliberately takes no summary parameter so that can't happen again.
+    """
+    parts = [title or ""]
+    parts.extend(key_topics or [])
+    return detect_players(" \n ".join(parts))
