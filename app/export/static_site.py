@@ -131,28 +131,67 @@ def _render(by_theme: dict[str, list[dict]], total: int) -> str:
     return f"""<!DOCTYPE html>
 <html lang="es"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AI News — Briefing</title>
+<title>AI News — Manuel Mesonero</title>
+<meta name="description" content="Briefing diario de noticias de IA, deduplicado y clasificado automáticamente.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root {{ color-scheme: dark; }}
-  body {{ font-family:-apple-system,Segoe UI,system-ui,sans-serif; background:#0d1117; color:#e6edf3;
-         margin:0; padding:24px; max-width:820px; margin:0 auto; }}
-  h1 {{ font-size:24px; margin:0 0 2px; }}
-  .sub {{ color:#8b949e; font-size:13px; margin-bottom:24px; }}
-  h2 {{ font-size:17px; margin:26px 0 10px; padding-bottom:6px; border-bottom:1px solid #30363d; }}
-  .card {{ background:#161b22; border:1px solid #30363d; border-radius:8px; padding:12px 14px; margin-bottom:10px; }}
-  .title a {{ color:#58a6ff; text-decoration:none; font-weight:600; font-size:15px; }}
-  .title a:hover {{ text-decoration:underline; }}
-  .meta {{ display:flex; gap:10px; align-items:center; margin-bottom:6px; font-size:12px; color:#8b949e; }}
-  .nota {{ background:#bc8cff33; color:#d2a8ff; padding:1px 8px; border-radius:10px; font-weight:600; }}
-  .src {{ background:#3fb95033; color:#7ee787; padding:1px 8px; border-radius:10px; }}
-  .sum {{ color:#c9d1d9; font-size:13px; line-height:1.5; margin:8px 0 0; }}
-  .empty {{ color:#8b949e; }}
-  footer {{ color:#8b949e; font-size:12px; margin-top:30px; border-top:1px solid #30363d; padding-top:12px; }}
+  :root {{
+    --bg:#FAFAF7; --bg-elev:#FFFFFF; --bg-muted:#F2F0E9;
+    --text:#1A1815; --text-muted:#6B655C; --text-soft:#9A938A;
+    --border:rgba(26,24,21,0.10); --border-strong:rgba(26,24,21,0.18);
+    --accent:#C8A864; --accent-soft:rgba(200,168,100,0.14); --accent-strong:#B0904C;
+    --shadow-sm:0 1px 2px rgba(26,24,21,0.04);
+    --shadow-md:0 8px 24px -8px rgba(26,24,21,0.10), 0 2px 6px rgba(26,24,21,0.05);
+    --serif:'Cormorant Garamond',Georgia,serif;
+    --sans:'Outfit','Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+    --radius-sm:8px; --radius-md:14px;
+  }}
+  @media (prefers-color-scheme: dark) {{
+    :root {{
+      --bg:#1A1A17; --bg-elev:#22221E; --bg-muted:#22221E;
+      --text:#ECEAE3; --text-muted:#9A938A; --text-soft:#6B655C;
+      --border:rgba(236,234,227,0.08); --border-strong:rgba(236,234,227,0.16);
+      --accent:#D4B775; --accent-soft:rgba(212,183,117,0.12); --accent-strong:#E2C589;
+      --shadow-sm:0 1px 2px rgba(0,0,0,0.30);
+      --shadow-md:0 10px 30px -10px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.30);
+    }}
+  }}
+  * {{ box-sizing:border-box; }}
+  body {{ font-family:var(--sans); background:var(--bg); color:var(--text);
+         margin:0; padding:48px 22px 64px; font-weight:300; line-height:1.55; }}
+  .wrap {{ max-width:760px; margin:0 auto; }}
+  header {{ margin-bottom:36px; }}
+  h1 {{ font-family:var(--serif); font-weight:500; font-size:42px; letter-spacing:-0.01em;
+       margin:0 0 6px; }}
+  .sub {{ color:var(--text-muted); font-size:14px; }}
+  .accent {{ color:var(--accent-strong); }}
+  h2 {{ font-family:var(--serif); font-weight:600; font-size:25px; margin:38px 0 14px;
+       display:flex; align-items:center; gap:10px; }}
+  .card {{ background:var(--bg-elev); border:1px solid var(--border); border-radius:var(--radius-md);
+          padding:16px 18px; margin-bottom:12px; box-shadow:var(--shadow-sm); transition:box-shadow .2s,border-color .2s; }}
+  .card:hover {{ box-shadow:var(--shadow-md); border-color:var(--border-strong); }}
+  .meta {{ display:flex; gap:10px; align-items:center; margin-bottom:7px; font-size:12px; color:var(--text-soft); }}
+  .nota {{ background:var(--accent-soft); color:var(--accent-strong); padding:2px 9px;
+          border-radius:999px; font-weight:600; letter-spacing:0.01em; }}
+  .src {{ border:1px solid var(--border-strong); padding:2px 9px; border-radius:999px; }}
+  .title a {{ color:var(--text); text-decoration:none; font-weight:500; font-size:17px; line-height:1.35; }}
+  .title a:hover {{ color:var(--accent-strong); }}
+  .sum {{ color:var(--text-muted); font-size:14px; margin:9px 0 0; }}
+  .empty {{ color:var(--text-muted); }}
+  footer {{ color:var(--text-soft); font-size:12.5px; margin-top:44px;
+           border-top:1px solid var(--border); padding-top:16px; }}
+  footer a {{ color:var(--accent-strong); text-decoration:none; }}
 </style></head><body>
-<h1>📰 AI News — Briefing</h1>
-<div class="sub">{total} noticias · últimos 7 días · actualizado {updated}</div>
+<div class="wrap">
+<header>
+  <h1>AI <span class="accent">News</span></h1>
+  <div class="sub">{total} noticias · últimos 7 días · actualizado {updated}</div>
+</header>
 {body}
-<footer>Generado automáticamente · dedup semántico + clasificación IA</footer>
+<footer>Recopilado y clasificado automáticamente · dedup semántico + IA · <a href="/">← mmesonero</a></footer>
+</div>
 </body></html>"""
 
 
