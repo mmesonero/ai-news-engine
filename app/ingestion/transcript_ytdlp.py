@@ -109,13 +109,10 @@ def fetch_transcript_via_ytdlp(video_id: str, language: str = "en") -> str | Non
 
 
 # Audio-transcription fallback: download audio via yt-dlp (android client
-# bypasses many rate limits), then transcribe. Two backends (settings.transcribe_backend):
-#   "openai" → OpenAI transcription API. No CPU; portable; works on GitHub Actions.
-#   "local"  → faster-whisper on CPU. Free but heavy; respects enable_local_whisper.
+# bypasses many rate limits), then transcribe via the OpenAI transcription API
+# (settings.transcribe_backend: "openai" to enable, "none" to disable).
 
-_AUDIO_MAX_BYTES = 200 * 1024 * 1024       # local backend sanity cap
 _OPENAI_AUDIO_MAX_BYTES = 25 * 1024 * 1024  # OpenAI transcription hard limit (25 MB)
-_FASTER_WHISPER_MODEL: object | None = None  # lazily loaded singleton
 _OPENAI_SYNC_CLIENT: object | None = None
 
 
@@ -154,22 +151,6 @@ def _download_audio(video_id: str, dest_dir: str) -> str | None:
     return files[0] if files else None
 
 
-def _get_whisper_model():
-    """Lazy-load the faster-whisper model. Re-used across calls in the same process."""
-    global _FASTER_WHISPER_MODEL
-    if _FASTER_WHISPER_MODEL is None:
-        from faster_whisper import WhisperModel
-        model_name = settings.whisper_model
-        log.info("whisper.loading_model", model=model_name)
-        _FASTER_WHISPER_MODEL = WhisperModel(
-            model_name,
-            device="cpu",
-            compute_type="int8",  # 8-bit quant — fast on CPU, low RAM
-        )
-        log.info("whisper.model_loaded", model=model_name)
-    return _FASTER_WHISPER_MODEL
-
-
 def _get_openai_sync_client():
     global _OPENAI_SYNC_CLIENT
     if _OPENAI_SYNC_CLIENT is None:
@@ -202,37 +183,13 @@ def _transcribe_openai(audio_path: str, video_id: str) -> str | None:
         return None
 
 
-def _transcribe_local(audio_path: str, video_id: str, language: str) -> str | None:
-    size = os.path.getsize(audio_path)
-    if size > _AUDIO_MAX_BYTES:
-        log.warning("whisper.audio_too_large", video=video_id, bytes=size)
-        return None
-    try:
-        model = _get_whisper_model()
-        segments, _info = model.transcribe(
-            audio_path,
-            language=language if language else None,
-            beam_size=1,
-            vad_filter=True,
-        )
-        text = " ".join(seg.text.strip() for seg in segments).strip()
-        return text or None
-    except Exception as e:
-        log.warning("whisper.transcribe_failed", video=video_id, err=str(e)[:200])
-        return None
-
-
 def fetch_transcript_via_whisper(video_id: str, language: str = "en") -> str | None:
-    """Download audio + transcribe, using the configured backend
-    (settings.transcribe_backend: "openai" | "local" | "none").
-    Returns None when disabled or on any failure."""
+    """Download audio + transcribe via the OpenAI transcription API.
+    No-op when transcribe_backend is "none" or no API key is set."""
     backend = (settings.transcribe_backend or "openai").lower()
-    if backend == "none":
+    if backend != "openai":
         return None
-    if backend == "local" and not settings.enable_local_whisper:
-        log.info("transcribe.local_disabled", video=video_id)
-        return None
-    if backend == "openai" and not settings.openai_api_key:
+    if not settings.openai_api_key:
         log.info("transcribe.openai_no_key", video=video_id)
         return None
 
@@ -240,6 +197,4 @@ def fetch_transcript_via_whisper(video_id: str, language: str = "en") -> str | N
         audio_path = _download_audio(video_id, td)
         if audio_path is None:
             return None
-        if backend == "openai":
-            return _transcribe_openai(audio_path, video_id)
-        return _transcribe_local(audio_path, video_id, language)
+        return _transcribe_openai(audio_path, video_id)

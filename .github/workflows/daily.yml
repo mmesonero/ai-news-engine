@@ -36,10 +36,8 @@ jobs:
       SYNC_DATABASE_URL: ${{ secrets.SYNC_DATABASE_URL }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      # Cloud runner has no spare CPU for local Whisper — use the OpenAI API.
       TRANSCRIBE_BACKEND: openai
       OPENAI_TRANSCRIBE_MODEL: gpt-4o-transcribe
-      ENABLE_LOCAL_WHISPER: "false"
       RETENTION_DAYS: "14"   # dedup only needs 14d of history; keeps Neon free tier comfortable
       APP_ENV: prod
       LOG_LEVEL: INFO

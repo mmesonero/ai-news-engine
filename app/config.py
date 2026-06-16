@@ -43,14 +43,9 @@ class Settings(BaseSettings):
     retention_days: int = Field(default=30, description="Delete raw_content older than this.")
     retention_cron: str = Field(default="30 6 * * *", description="When to run cleanup (after pipeline).")
 
-    # Transcript fallback config.
-    # Backend for audio transcription when no subtitles exist:
-    #   "openai" → OpenAI transcription API (no CPU; works on GitHub Actions / cloud)
-    #   "local"  → faster-whisper on CPU (free, heavy; respects enable_local_whisper)
-    #   "none"   → disable audio transcription entirely
+    # Audio transcription (for videos without subtitles):
+    #   "openai" → OpenAI transcription API   |   "none" → disabled
     transcribe_backend: str = Field(default="openai")
-    enable_local_whisper: bool = Field(default=True)
-    whisper_model: str = Field(default="base", description="faster-whisper model: tiny|base|small|medium|large-v3")
     whisper_max_per_run: int = Field(default=15, description="Cap transcription invocations per pipeline run.")
 
     embedding_dim: int = 1536

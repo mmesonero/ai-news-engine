@@ -31,8 +31,6 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       - ./:/app
-      - whisper_cache:/root/.cache/huggingface  # persist faster-whisper model
 
 volumes:
   db_data:
-  whisper_cache:
