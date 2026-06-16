@@ -78,9 +78,10 @@ jobs:
           fi
           python -m app.export.static_site site/index.html
           git clone --depth 1 "https://x-access-token:${PAGES_TOKEN}@github.com/mmesonero/mmesonero.github.io.git" out
-          rm -rf out/ai-news
-          mkdir -p out/ai-news
-          cp -r site/. out/ai-news/
+          # Only update the per-story detail pages (n/); leave index.html managed by the portfolio repo
+          rm -rf out/ai-news/n
+          mkdir -p out/ai-news/n
+          cp -r site/n/. out/ai-news/n/
           cd out
           git config user.name "ai-news-bot"
           git config user.email "noreply@users.noreply.github.com"
