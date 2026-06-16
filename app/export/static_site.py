@@ -501,7 +501,7 @@ def _emit_data_js(items: list[dict]) -> str:
 async def main(out_path: str) -> None:
     import os
 
-    items = await _collect(hours=720, limit=200)  # bake 30 days; client filters by range
+    items = await _collect(hours=2160, limit=1000)  # bake 90 days (archive); client filters by range
     out_dir = os.path.dirname(os.path.abspath(out_path)) or "."
     os.makedirs(out_dir, exist_ok=True)
     # index

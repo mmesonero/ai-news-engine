@@ -169,7 +169,7 @@ Each step is idempotent and keys off dependent-row presence. Order:
 9. **Images** — fetch a hero image (og:image / YouTube thumb) for representatives lacking one.
 10. **Prune duplicate members** — drop embedding + raw_text of non-representative duplicates (rows kept so cross-source counts still work).
 11. **Telegram** — `send_new_stories` posts one message per not-yet-notified story; `update_boosted_stories` edits posts whose source count grew (live boost).
-12. **Retention** — delete `raw_content` older than `RETENTION_DAYS`.
+12. **Retention** — archive-friendly: for `raw_content` older than `RETENTION_DAYS`, blank the heavy data (drop the `embeddings` row + clear `raw_text`, set `embedding_pruned`) but KEEP the row + `processed_content` + cluster forever. The site stays a permanent archive at ~1KB/story.
 13. **Publish** (workflow step) — regenerate `data.js` + `n/` and push them to the portfolio repo (never `index.html`).
 
 Per-source and per-record try/except boundaries: one bad article never aborts a run.
@@ -254,7 +254,7 @@ Generates `data.js` (`window.__NEWS = {now, data:[...]}`) + `n/<slug>.html` deta
 - **Secrets**: live only in GitHub Actions (encrypted, not readable back). Migrations against the cloud DB run only inside Actions. See `SECURITY.md`.
 - **Logs / metrics**: structlog JSON, `run_id` per run; per-stage counters (ingested, clusters, merges, enriched, telegram_sent/edited, images_found, members_pruned) logged at run end.
 - **Idempotency**: re-running a day is safe.
-- **Storage**: duplicate-member embeddings/text pruned + 14-day retention keep Neon's free tier comfortable; the web bakes 30 days for client-side filtering.
+- **Storage**: only heavy data (embeddings + body text) is bounded — blanked past `RETENTION_DAYS` while the ~1KB/story metadata is kept forever (permanent archive). The web bakes 90 days for client-side filtering. `RETENTION_DAYS` must stay ≥ `DEDUP_LOOKBACK_DAYS` so dedup never loses its window.
 - **YouTube limitation**: transcript downloads are blocked from datacenter IPs, so video transcription is best-effort in the cloud; RSS covers the bulk.
 
 ---
