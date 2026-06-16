@@ -8,7 +8,7 @@ import structlog
 from app.database import SessionLocal
 from app.logging_config import configure_logging, get_logger
 from app.notify.telegram import send_new_stories
-from app.services.classification_service import ClassificationService
+from app.services.classification_service import ClassificationService, backfill_players
 from app.services.cluster_merger import (
     ClusterMergerService,
     prune_duplicate_members,
@@ -72,6 +72,10 @@ async def run_daily_pipeline() -> dict[str, int]:
     async with SessionLocal() as session:
         enriched = await EnrichmentService(session).enrich_pending()
         metrics["enriched_clusters"] = enriched
+
+    # Tag items with the top players involved (free keyword match; current + future).
+    async with SessionLocal() as session:
+        metrics["players_tagged"] = await backfill_players(session)
 
     # Storage saver: drop heavy embedding + raw_text of duplicate members
     # (rows kept so cross-source counts still work).

@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select
+
 from app.ai.openai_client import json_completion
+from app.ai.players import detect_players
 from app.ai.prompts import CLASSIFY_NOISE_V1_SYSTEM, CLASSIFY_NOISE_V1_USER, INJECTION_GUARD
 from app.ai.sanitize import neutralize, wrap
 from app.logging_config import get_logger
 from app.models.processed_content import ProcessedContent
+from app.models.raw_content import RawContent
 from app.repositories.processed_repo import ProcessedContentRepository
 from app.repositories.raw_content_repo import RawContentRepository
 
@@ -68,3 +72,25 @@ class ClassificationService:
                 valuable += 1
         log.info("classify.done", valuable=valuable, noisy=noisy)
         return valuable, noisy
+
+
+async def backfill_players(session: AsyncSession) -> int:
+    """Tag each processed item with the top players it mentions (OpenAI, Anthropic,
+    Google, Meta, NVIDIA, ...). Deterministic keyword/alias match — free, no LLM.
+    Idempotent: recomputes and updates only when the result changes."""
+    rows = await session.execute(
+        select(ProcessedContent, RawContent.title)
+        .join(RawContent, RawContent.id == ProcessedContent.raw_content_id)
+    )
+    changed = 0
+    for proc, title in rows.all():
+        text_parts = [title or "", proc.cleaned_summary or ""]
+        text_parts.extend(proc.key_topics or [])
+        players = detect_players(" \n ".join(text_parts))
+        if players != (proc.players or []):
+            proc.players = players
+            changed += 1
+    if changed:
+        await session.commit()
+    log.info("players.backfill", updated=changed)
+    return changed

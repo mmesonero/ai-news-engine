@@ -99,6 +99,7 @@ async def _collect(hours: int, limit: int) -> list[dict]:
                 "published_at": raw.published_at,
                 "ts": int(when.timestamp()) if when else 0,
                 "relevance": int(boost) if boost is not None else 0,
+                "players": proc.players or [],
             }
         )
     return items
@@ -112,6 +113,15 @@ def _render(items: list[dict]) -> str:
     opts = '<option value="all">Todos los temas</option>' + "".join(
         f'<option value="{t}">{_THEME_EMOJI.get(t, "🌐")} {_esc(THEME_LABEL.get(t, t))}</option>'
         for t in present
+    )
+    # players present, by frequency
+    pcount: dict[str, int] = {}
+    for it in items:
+        for p in it.get("players") or []:
+            pcount[p] = pcount.get(p, 0) + 1
+    players_present = sorted(pcount, key=lambda p: -pcount[p])
+    popts = '<option value="all">Todos los players</option>' + "".join(
+        f'<option value="{_esc(p)}">{_esc(p)} ({pcount[p]})</option>' for p in players_present
     )
 
     cards = []
@@ -128,7 +138,8 @@ def _render(items: list[dict]) -> str:
         summary = f'<p class="sum">{_esc(it["summary"])}</p>' if it["summary"] else ""
         cards.append(
             f'<article class="card" data-theme="{theme}" data-rel="{it["relevance"]}" '
-            f'data-date="{date_attr}" data-ts="{it["ts"]}" data-tier="{it["tier"]}">'
+            f'data-date="{date_attr}" data-ts="{it["ts"]}" data-tier="{it["tier"]}" '
+            f'data-players="{_esc("|".join(it.get("players") or []))}">'
             f'<div class="meta"><span class="tag">{emoji} {label}</span>'
             f'<span class="nota">{_esc(nota)}</span>{srcb}'
             f'<span class="date">{date}</span></div>'
@@ -212,6 +223,7 @@ def _render(items: list[dict]) -> str:
     <option value="720">Último mes</option>
   </select>
   <select id="filter">{opts}</select>
+  <select id="player">{popts}</select>
   <select id="sort">
     <option value="rel">Orden: relevancia</option>
     <option value="date">Orden: más reciente</option>
@@ -228,16 +240,18 @@ def _render(items: list[dict]) -> str:
   var list = document.getElementById('list');
   var rangeEl = document.getElementById('range');
   var filterEl = document.getElementById('filter');
+  var playerEl = document.getElementById('player');
   var sortEl = document.getElementById('sort');
   var lowEl = document.getElementById('showlow');
   var countEl = document.getElementById('count');
   var cards = Array.prototype.slice.call(list.querySelectorAll('.card'));
   function apply() {{
-    var f = filterEl.value, s = sortEl.value, showLow = lowEl.checked;
+    var f = filterEl.value, p = playerEl.value, s = sortEl.value, showLow = lowEl.checked;
     var hours = parseInt(rangeEl.value, 10);
     var cutoff = (Date.now() / 1000) - hours * 3600;
     var vis = cards.filter(function(c) {{
       if (f !== 'all' && c.dataset.theme !== f) return false;
+      if (p !== 'all' && ('|' + c.dataset.players + '|').indexOf('|' + p + '|') === -1) return false;
       if (!showLow && c.dataset.tier === 'baja') return false;
       var ts = parseInt(c.dataset.ts, 10);
       return ts >= cutoff;
@@ -252,6 +266,7 @@ def _render(items: list[dict]) -> str:
   }}
   rangeEl.addEventListener('change', apply);
   filterEl.addEventListener('change', apply);
+  playerEl.addEventListener('change', apply);
   sortEl.addEventListener('change', apply);
   lowEl.addEventListener('change', apply);
   apply();

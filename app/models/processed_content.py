@@ -31,4 +31,5 @@ class ProcessedContent(Base):
     is_noise: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     theme: Mapped[str | None] = mapped_column(Text, nullable=True)
     importance_tier: Mapped[str | None] = mapped_column(Text, nullable=True)
+    players: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
