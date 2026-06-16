@@ -30,15 +30,15 @@ def _site_home() -> str:
 
 
 def _nav() -> str:
-    # Matches the AI News index topnav exactly: logo + "Portfolio · AI News".
+    # Copied verbatim from the AI News index topnav (logo + Portfolio · AI News).
     home = _site_home()
     return (
-        '<nav class="nav"><div class="container nav-inner">'
-        f'<a href="{home}/" class="brand" aria-label="Manuel Mesonero">'
-        f'<img src="{home}/assets/logo.png" alt="MM" class="brand-mark"></a>'
-        '<div class="nav-links">'
-        f'<a href="{home}/">Portfolio</a><span class="nav-sep">·</span>'
-        f'<a href="{home}/ai-news/" class="nav-accent">AI News</a>'
+        '<nav class="topnav"><div class="topnav-inner">'
+        f'<a href="{home}/" class="topnav-brand"><img src="{home}/assets/logo.png" alt="MM"></a>'
+        '<div class="topnav-links">'
+        f'<a href="{home}/">Portfolio</a>'
+        '<span class="topnav-sep">·</span>'
+        '<a class="active">AI News</a>'
         "</div></div></nav>"
     )
 from app.models.cluster import ClusterItem, ContentCluster
@@ -168,38 +168,43 @@ _STYLE = """
   body { font-family:var(--sans); background:var(--bg); color:var(--text);
          margin:0; padding:0; font-weight:400; line-height:1.55;
          -webkit-font-smoothing:antialiased; min-height:100vh; }
-  /* warm wash + vignette — matches the AI News index background */
+  /* background — copied verbatim from the AI News index (glows + vignette + grain) */
   body::before { content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
     background-image:
       radial-gradient(ellipse 900px 700px at 12% 8%, rgba(200,168,100,0.07), transparent 60%),
       radial-gradient(ellipse 800px 600px at 88% 82%, rgba(200,168,100,0.06), transparent 60%),
       radial-gradient(ellipse 1400px 900px at 50% 50%, transparent 0%, rgba(26,24,21,0.03) 80%); }
+  body::after { content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+    opacity:0.45; mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.10  0 0 0 0 0.09  0 0 0 0 0.08  0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.30'/></svg>");
+    background-size:240px 240px; }
   @media (prefers-color-scheme: dark) {
     body::before { background-image:
       radial-gradient(ellipse 900px 700px at 12% 8%, rgba(226,186,107,0.06), transparent 60%),
       radial-gradient(ellipse 800px 600px at 88% 82%, rgba(226,186,107,0.05), transparent 60%),
       radial-gradient(ellipse 1400px 900px at 50% 50%, transparent 0%, rgba(0,0,0,0.35) 90%); }
+    body::after { opacity:0.55; mix-blend-mode:screen;
+      background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.93  0 0 0 0 0.88  0 0 0 0.5 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.16'/></svg>"); }
   }
-  .nav, .wrap { position:relative; z-index:1; }
+  .topnav, .wrap { position:relative; z-index:1; }
   .wrap { max-width:760px; margin:0 auto; padding:40px 22px 64px; }
-  /* nav (matches mmesonero.github.io) */
-  .container { max-width:var(--container); margin:0 auto; padding:0 32px; }
-  .nav { position:sticky; top:0; z-index:50; backdrop-filter:blur(14px) saturate(1.2);
-         -webkit-backdrop-filter:blur(14px) saturate(1.2);
-         background:color-mix(in oklab, var(--bg) 78%, transparent);
-         border-bottom:1px solid transparent; }
-  .nav-inner { display:flex; align-items:center; justify-content:center; height:72px; gap:32px; }
-  .brand { display:flex; align-items:center; }
-  .brand-mark { height:42px; width:auto; display:block; transition:transform .4s; }
-  .brand:hover .brand-mark { transform:scale(1.04); }
-  .nav-links { display:flex; gap:18px; font-size:12px; font-weight:400; font-family:var(--mono);
-               letter-spacing:0.22em; text-transform:uppercase; color:var(--text-muted); align-items:center; }
-  .nav-links a { position:relative; text-decoration:none; color:var(--text-muted); white-space:nowrap; transition:color .2s ease; }
-  .nav-links a:hover { color:var(--text); }
-  .nav-sep { color:var(--text-soft); font-family:var(--mono); font-size:11px; }
-  .nav-accent { color:var(--accent) !important; }
-  .nav-accent:hover { color:var(--accent-strong) !important; }
-  @media (max-width:640px) { .nav-links { gap:10px; font-size:10px; letter-spacing:0.16em; } .nav-sep { font-size:9px; } .brand-mark { height:34px; } .container { padding:0 22px; } }
+  /* top nav — copied verbatim from the AI News index */
+  .topnav { position:sticky; top:0; z-index:50;
+    backdrop-filter:blur(14px) saturate(1.2); -webkit-backdrop-filter:blur(14px) saturate(1.2);
+    background:color-mix(in oklab, var(--bg) 78%, transparent);
+    border-bottom:1px solid transparent; transition:border-color .25s ease;
+    padding:0 clamp(24px, 6vw, 160px); }
+  .topnav-inner { max-width:1200px; margin:0 auto; display:flex; align-items:center; justify-content:center; height:72px; gap:32px; }
+  .topnav-brand { display:flex; align-items:center; }
+  .topnav-brand img { height:36px; width:auto; opacity:.85; transition:transform .4s cubic-bezier(.2,.7,.2,1), opacity .3s ease; }
+  .topnav-brand:hover img { transform:scale(1.04); opacity:1; }
+  .topnav-links { display:flex; gap:18px; align-items:center; font-size:12px; font-weight:400; letter-spacing:0.22em; text-transform:uppercase; color:var(--text-muted); }
+  .topnav-links a { color:var(--text-muted); text-decoration:none; transition:color .2s ease; position:relative; }
+  .topnav-links a:hover { color:var(--text); }
+  .topnav-links a::after { content:''; position:absolute; left:0; right:0; bottom:-6px; height:1px; background:var(--accent); transform:scaleX(0); transform-origin:left; transition:transform .35s cubic-bezier(.2,.7,.2,1); }
+  .topnav-links a:hover::after { transform:scaleX(1); }
+  .topnav-links .active { color:var(--accent); }
+  .topnav-sep { color:var(--text-soft); font-size:11px; }
   header { margin-bottom:22px; }
   h1 { font-family:var(--sans); font-weight:600; font-size:34px; letter-spacing:-0.02em; margin:0 0 6px; }
   .sub { color:var(--text-muted); font-size:14px; }
