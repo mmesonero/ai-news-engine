@@ -78,11 +78,12 @@ jobs:
           fi
           python -m app.export.static_site site/index.html
           git clone --depth 1 "https://x-access-token:${PAGES_TOKEN}@github.com/mmesonero/mmesonero.github.io.git" out
+          rm -rf out/ai-news
           mkdir -p out/ai-news
-          cp site/index.html out/ai-news/index.html
+          cp -r site/. out/ai-news/
           cd out
           git config user.name "ai-news-bot"
           git config user.email "noreply@users.noreply.github.com"
-          git add ai-news/index.html
-          git commit -m "Update AI news page" || { echo "no changes"; exit 0; }
+          git add ai-news
+          git commit -m "Update AI news page + detail pages" || { echo "no changes"; exit 0; }
           git push

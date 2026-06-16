@@ -19,6 +19,7 @@ from sqlalchemy import case, desc, func, or_, select
 
 from app.api.v1.briefing import THEME_LABEL, THEME_ORDER
 from app.database import SessionLocal
+from app.links import detail_path, story_slug
 from app.models.cluster import ClusterItem, ContentCluster
 from app.models.processed_content import ProcessedContent
 from app.models.raw_content import RawContent
@@ -49,6 +50,88 @@ _SHORT_LABEL = {
 
 def _esc(s: str | None) -> str:
     return html.escape(s or "")
+
+
+_FONT = (
+    '<link rel="preconnect" href="https://fonts.googleapis.com">'
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    '<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">'
+)
+
+# Shared CSS (plain string, single braces). Used by index + detail pages.
+_STYLE = """
+  :root {
+    --bg:#FAFAF7; --bg-elev:#FFFFFF; --bg-muted:#F2F0E9;
+    --text:#1A1815; --text-muted:#6B655C; --text-soft:#9A938A;
+    --border:rgba(26,24,21,0.10); --border-strong:rgba(26,24,21,0.18);
+    --accent:#C8A864; --accent-soft:rgba(200,168,100,0.14); --accent-strong:#B0904C;
+    --shadow-sm:0 1px 2px rgba(26,24,21,0.04);
+    --shadow-md:0 8px 24px -8px rgba(26,24,21,0.10), 0 2px 6px rgba(26,24,21,0.05);
+    --sans:'Outfit','Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+    --radius-sm:8px; --radius-md:14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#1A1A17; --bg-elev:#22221E; --bg-muted:#22221E;
+      --text:#ECEAE3; --text-muted:#9A938A; --text-soft:#6B655C;
+      --border:rgba(236,234,227,0.08); --border-strong:rgba(236,234,227,0.16);
+      --accent:#D4B775; --accent-soft:rgba(212,183,117,0.12); --accent-strong:#E2C589;
+      --shadow-sm:0 1px 2px rgba(0,0,0,0.30);
+      --shadow-md:0 10px 30px -10px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.30);
+    }
+  }
+  * { box-sizing:border-box; }
+  body { font-family:var(--sans); background:var(--bg); color:var(--text);
+         margin:0; padding:48px 22px 64px; font-weight:400; line-height:1.55;
+         -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:760px; margin:0 auto; }
+  header { margin-bottom:22px; }
+  h1 { font-family:var(--sans); font-weight:600; font-size:34px; letter-spacing:-0.02em; margin:0 0 6px; }
+  .sub { color:var(--text-muted); font-size:14px; }
+  .accent { color:var(--accent-strong); }
+  .controls { display:flex; flex-direction:column; gap:10px; margin:22px 0 26px; }
+  .ctrl-row { display:flex; gap:9px; flex-wrap:wrap; align-items:center; }
+  .ctrl-label { font-size:12px; font-weight:600; color:var(--text-soft); text-transform:uppercase; letter-spacing:0.04em; }
+  select { font-family:var(--sans); font-size:13px; font-weight:500; color:var(--text);
+           background:var(--bg-elev); border:1px solid var(--border-strong); border-radius:999px;
+           padding:7px 13px; cursor:pointer; }
+  select:hover { border-color:var(--accent-strong); }
+  .switch { display:inline-flex; align-items:center; gap:8px; cursor:pointer;
+            font-size:13px; font-weight:500; color:var(--text-muted); margin-left:auto; user-select:none; }
+  .switch input { position:absolute; opacity:0; pointer-events:none; }
+  .switch .track { width:40px; height:23px; border-radius:999px; background:var(--border-strong);
+                   position:relative; transition:background .2s; flex:none; }
+  .switch .track::after { content:""; position:absolute; top:2.5px; left:2.5px; width:18px; height:18px;
+                          border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.3); transition:transform .2s; }
+  .switch input:checked + .track { background:var(--accent-strong); }
+  .switch input:checked + .track::after { transform:translateX(17px); }
+  .card { background:var(--bg-elev); border:1px solid var(--border); border-radius:var(--radius-md);
+          padding:16px 18px; margin-bottom:12px; box-shadow:var(--shadow-sm); transition:box-shadow .2s,border-color .2s; }
+  .card:hover { box-shadow:var(--shadow-md); border-color:var(--border-strong); }
+  .card.hide { display:none; }
+  .meta { display:flex; gap:9px; align-items:center; margin-bottom:8px; font-size:12px; color:var(--text-soft); flex-wrap:wrap; }
+  .tag { font-weight:500; color:var(--text-muted); }
+  .nota { background:var(--accent-soft); color:var(--accent-strong); padding:2px 9px; border-radius:999px; font-weight:600; }
+  .src { border:1px solid var(--border-strong); padding:2px 9px; border-radius:999px; }
+  .date { margin-left:auto; }
+  .title a { color:var(--text); text-decoration:none; font-weight:500; font-size:17px; line-height:1.35; }
+  .title a:hover { color:var(--accent-strong); }
+  .sum { color:var(--text-muted); font-size:14px; margin:9px 0 0; font-weight:300; }
+  .empty { color:var(--text-muted); }
+  footer { color:var(--text-soft); font-size:12.5px; margin-top:44px; border-top:1px solid var(--border); padding-top:16px; }
+  footer a { color:var(--accent-strong); text-decoration:none; }
+  /* detail page */
+  .back { display:inline-block; color:var(--text-soft); text-decoration:none; font-size:13px; margin-bottom:18px; }
+  .back:hover { color:var(--accent-strong); }
+  .detail-title { font-size:27px; font-weight:600; line-height:1.25; letter-spacing:-0.01em; margin:6px 0 14px; }
+  .detail-sum { font-size:16px; color:var(--text-muted); line-height:1.6; font-weight:300; margin:0 0 24px; }
+  .players { display:flex; gap:7px; flex-wrap:wrap; margin:18px 0; }
+  .chip { background:var(--bg-muted); border:1px solid var(--border); color:var(--text-muted);
+          padding:3px 11px; border-radius:999px; font-size:12.5px; font-weight:500; }
+  .source-btn { display:inline-block; background:var(--accent-strong); color:#fff; text-decoration:none;
+                font-weight:600; font-size:14px; padding:11px 20px; border-radius:999px; margin-top:8px; }
+  .source-btn:hover { filter:brightness(1.06); }
+"""
 
 
 async def _collect(hours: int, limit: int) -> list[dict]:
@@ -146,7 +229,8 @@ def _render(items: list[dict]) -> str:
         date = it["published_at"].strftime("%d/%m") if it["published_at"] else ""
         date_attr = it["published_at"].strftime("%Y%m%d") if it["published_at"] else "0"
         title = _esc(it["title"] or "(sin título)")
-        link = f'<a href="{_esc(it["url"])}" target="_blank" rel="noopener">{title}</a>' if it["url"] else title
+        # Link to OUR detail subpage (not the source). Source link lives inside it.
+        link = f'<a href="{_esc(detail_path(it["url"]))}">{title}</a>'
         summary = f'<p class="sum">{_esc(it["summary"])}</p>' if it["summary"] else ""
         cards.append(
             f'<article class="card" data-theme="{theme}" data-rel="{it["relevance"]}" '
@@ -163,75 +247,8 @@ def _render(items: list[dict]) -> str:
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI News — Manuel Mesonero</title>
 <meta name="description" content="Briefing diario de noticias de IA, deduplicado y clasificado automáticamente.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<style>
-  :root {{
-    --bg:#FAFAF7; --bg-elev:#FFFFFF; --bg-muted:#F2F0E9;
-    --text:#1A1815; --text-muted:#6B655C; --text-soft:#9A938A;
-    --border:rgba(26,24,21,0.10); --border-strong:rgba(26,24,21,0.18);
-    --accent:#C8A864; --accent-soft:rgba(200,168,100,0.14); --accent-strong:#B0904C;
-    --shadow-sm:0 1px 2px rgba(26,24,21,0.04);
-    --shadow-md:0 8px 24px -8px rgba(26,24,21,0.10), 0 2px 6px rgba(26,24,21,0.05);
-    --sans:'Outfit','Inter',-apple-system,BlinkMacSystemFont,sans-serif;
-    --radius-sm:8px; --radius-md:14px;
-  }}
-  @media (prefers-color-scheme: dark) {{
-    :root {{
-      --bg:#1A1A17; --bg-elev:#22221E; --bg-muted:#22221E;
-      --text:#ECEAE3; --text-muted:#9A938A; --text-soft:#6B655C;
-      --border:rgba(236,234,227,0.08); --border-strong:rgba(236,234,227,0.16);
-      --accent:#D4B775; --accent-soft:rgba(212,183,117,0.12); --accent-strong:#E2C589;
-      --shadow-sm:0 1px 2px rgba(0,0,0,0.30);
-      --shadow-md:0 10px 30px -10px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.30);
-    }}
-  }}
-  * {{ box-sizing:border-box; }}
-  body {{ font-family:var(--sans); background:var(--bg); color:var(--text);
-         margin:0; padding:48px 22px 64px; font-weight:400; line-height:1.55;
-         -webkit-font-smoothing:antialiased; }}
-  .wrap {{ max-width:760px; margin:0 auto; }}
-  header {{ margin-bottom:22px; }}
-  h1 {{ font-family:var(--sans); font-weight:600; font-size:34px; letter-spacing:-0.02em; margin:0 0 6px; }}
-  .sub {{ color:var(--text-muted); font-size:14px; }}
-  .accent {{ color:var(--accent-strong); }}
-  .controls {{ display:flex; flex-direction:column; gap:10px; margin:22px 0 26px; }}
-  .ctrl-row {{ display:flex; gap:9px; flex-wrap:wrap; align-items:center; }}
-  .ctrl-label {{ font-size:12px; font-weight:600; color:var(--text-soft); text-transform:uppercase;
-                letter-spacing:0.04em; }}
-  select {{ font-family:var(--sans); font-size:13px; font-weight:500; color:var(--text);
-           background:var(--bg-elev); border:1px solid var(--border-strong); border-radius:999px;
-           padding:7px 13px; cursor:pointer; }}
-  select:hover {{ border-color:var(--accent-strong); }}
-  /* pretty toggle switch */
-  .switch {{ display:inline-flex; align-items:center; gap:8px; cursor:pointer;
-            font-size:13px; font-weight:500; color:var(--text-muted); margin-left:auto; user-select:none; }}
-  .switch input {{ position:absolute; opacity:0; pointer-events:none; }}
-  .switch .track {{ width:40px; height:23px; border-radius:999px; background:var(--border-strong);
-                   position:relative; transition:background .2s; flex:none; }}
-  .switch .track::after {{ content:""; position:absolute; top:2.5px; left:2.5px; width:18px; height:18px;
-                          border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.3); transition:transform .2s; }}
-  .switch input:checked + .track {{ background:var(--accent-strong); }}
-  .switch input:checked + .track::after {{ transform:translateX(17px); }}
-  .card {{ background:var(--bg-elev); border:1px solid var(--border); border-radius:var(--radius-md);
-          padding:16px 18px; margin-bottom:12px; box-shadow:var(--shadow-sm); transition:box-shadow .2s,border-color .2s; }}
-  .card:hover {{ box-shadow:var(--shadow-md); border-color:var(--border-strong); }}
-  .card.hide {{ display:none; }}
-  .meta {{ display:flex; gap:9px; align-items:center; margin-bottom:8px; font-size:12px; color:var(--text-soft); flex-wrap:wrap; }}
-  .tag {{ font-weight:500; color:var(--text-muted); }}
-  .nota {{ background:var(--accent-soft); color:var(--accent-strong); padding:2px 9px;
-          border-radius:999px; font-weight:600; }}
-  .src {{ border:1px solid var(--border-strong); padding:2px 9px; border-radius:999px; }}
-  .date {{ margin-left:auto; }}
-  .title a {{ color:var(--text); text-decoration:none; font-weight:500; font-size:17px; line-height:1.35; }}
-  .title a:hover {{ color:var(--accent-strong); }}
-  .sum {{ color:var(--text-muted); font-size:14px; margin:9px 0 0; font-weight:300; }}
-  .empty {{ color:var(--text-muted); }}
-  footer {{ color:var(--text-soft); font-size:12.5px; margin-top:44px;
-           border-top:1px solid var(--border); padding-top:16px; }}
-  footer a {{ color:var(--accent-strong); text-decoration:none; }}
-</style></head><body>
+{_FONT}
+<style>{_STYLE}</style></head><body>
 <div class="wrap">
 <header>
   <h1>AI <span class="accent">News</span></h1>
@@ -304,15 +321,57 @@ def _render(items: list[dict]) -> str:
 </body></html>"""
 
 
+def _render_detail(it: dict) -> str:
+    theme = it["theme"]
+    emoji = _THEME_EMOJI.get(theme, "🌐")
+    label = _esc(_SHORT_LABEL.get(theme, theme))
+    nota = f"{it['score']}/100" if it["score"] is not None else it["tier"]
+    srcb = f'<span class="src">📡 {it["sources"]} fuentes</span>' if it["sources"] > 1 else ""
+    date = it["published_at"].strftime("%d/%m/%Y") if it["published_at"] else ""
+    title = _esc(it["title"] or "(sin título)")
+    summary = _esc(it["summary"]) if it["summary"] else "Sin resumen disponible."
+    chips = "".join(f'<span class="chip">{_esc(p)}</span>' for p in (it.get("players") or []))
+    chips_block = f'<div class="players">{chips}</div>' if chips else ""
+    source = (
+        f'<a class="source-btn" href="{_esc(it["url"])}" target="_blank" rel="noopener">Ver fuente original →</a>'
+        if it["url"] else ""
+    )
+    return f"""<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title} — AI News</title>
+<meta name="description" content="{_esc((it['summary'] or '')[:150])}">
+{_FONT}
+<style>{_STYLE}</style></head><body>
+<div class="wrap">
+  <a class="back" href="../index.html">← Volver a AI News</a>
+  <div class="meta"><span class="tag">{emoji} {label}</span><span class="nota">{_esc(nota)}</span>{srcb}<span class="date">{date}</span></div>
+  <h1 class="detail-title">{title}</h1>
+  <p class="detail-sum">{summary}</p>
+  {chips_block}
+  {source}
+  <footer>Resumen y clasificación automáticos · <a href="../index.html">← AI News</a></footer>
+</div>
+</body></html>"""
+
+
 async def main(out_path: str) -> None:
-    items = await _collect(hours=720, limit=200)  # bake 30 days; client filters by range
-    html_doc = _render(items)
     import os
 
-    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    items = await _collect(hours=720, limit=200)  # bake 30 days; client filters by range
+    out_dir = os.path.dirname(os.path.abspath(out_path)) or "."
+    os.makedirs(out_dir, exist_ok=True)
+    # index
     with open(out_path, "w", encoding="utf-8") as f:
-        f.write(html_doc)
-    print(f"wrote {out_path} ({len(items)} stories)")
+        f.write(_render(items))
+    # per-story detail pages under <out_dir>/n/<slug>.html
+    n_dir = os.path.join(out_dir, "n")
+    os.makedirs(n_dir, exist_ok=True)
+    for it in items:
+        slug = story_slug(it["url"])
+        with open(os.path.join(n_dir, f"{slug}.html"), "w", encoding="utf-8") as f:
+            f.write(_render_detail(it))
+    print(f"wrote {out_path} + {len(items)} detail pages")
 
 
 if __name__ == "__main__":

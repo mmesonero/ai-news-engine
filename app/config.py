@@ -31,6 +31,10 @@ class Settings(BaseSettings):
         description="OpenAI speech-to-text model: gpt-4o-transcribe | gpt-4o-mini-transcribe | whisper-1",
     )
 
+    # Public site base — where the static news pages are published. Telegram links
+    # and the index cards point at per-story detail pages under this URL.
+    public_site_base: str = Field(default="https://mmesonero.github.io/ai-news")
+
     # Telegram delivery (optional). Secrets come from env, never a committed file.
     telegram_bot_token: str = Field(default="")
     telegram_chat_id: str = Field(default="")

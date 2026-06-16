@@ -17,6 +17,7 @@ from sqlalchemy import case, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.links import detail_url
 from app.logging_config import get_logger
 from app.models.cluster import ClusterItem, ContentCluster
 from app.models.processed_content import ProcessedContent
@@ -87,8 +88,9 @@ def _render_story(
     parts = [line1]
     if summary:
         parts.append(_esc(summary.strip()[:400]))
+    # Link to OUR web detail page (summary + data + source inside), not the source.
     if url:
-        parts.append(_esc(url))
+        parts.append(f'<a href="{_esc(detail_url(url))}">Ver en la web →</a>')
     return "\n\n".join(parts)
 
 
