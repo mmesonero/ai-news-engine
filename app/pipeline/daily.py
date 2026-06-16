@@ -7,7 +7,7 @@ import structlog
 
 from app.database import SessionLocal
 from app.logging_config import configure_logging, get_logger
-from app.notify.telegram import send_new_stories
+from app.notify.telegram import send_new_stories, update_boosted_stories
 from app.services.classification_service import ClassificationService, backfill_players
 from app.services.cluster_merger import (
     ClusterMergerService,
@@ -82,9 +82,12 @@ async def run_daily_pipeline() -> dict[str, int]:
     async with SessionLocal() as session:
         metrics["members_pruned"] = await prune_duplicate_members(session)
 
-    # Deliver one Telegram message per NEW story (no-op if not configured).
+    # Deliver one Telegram message per NEW story; then edit posts whose source
+    # count grew (a later duplicate → higher counter + boosted score).
     async with SessionLocal() as session:
         metrics["telegram_sent"] = await send_new_stories(session)
+    async with SessionLocal() as session:
+        metrics["telegram_edited"] = await update_boosted_stories(session)
 
     log.info("pipeline.done", **metrics)
     structlog.contextvars.clear_contextvars()

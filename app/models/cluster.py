@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, Text, func
+from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, Integer, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -20,6 +20,10 @@ class ContentCluster(Base):
     )
     # When this story was delivered to Telegram. NULL = not yet sent → eligible.
     notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Telegram message id of the sent post + the source count at send/edit time,
+    # so a later duplicate can edit the post to bump the counter + boosted score.
+    telegram_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    telegram_sources: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
