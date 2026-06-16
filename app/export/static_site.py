@@ -34,6 +34,18 @@ _THEME_EMOJI = {
     "noticia_relevante": "🌐",
 }
 
+# Short labels for the compact landing UI (full labels stay for Telegram/briefing).
+_SHORT_LABEL = {
+    "nuevo_modelo": "Modelos",
+    "herramienta_nueva": "Herramientas",
+    "nueva_funcionalidad": "Funciones",
+    "movimiento_empresarial": "Negocio",
+    "caso_practico": "Casos",
+    "insight_negocio": "Insights",
+    "ejemplo_uso": "Tutoriales",
+    "noticia_relevante": "Otras",
+}
+
 
 def _esc(s: str | None) -> str:
     return html.escape(s or "")
@@ -111,7 +123,7 @@ def _render(items: list[dict]) -> str:
     # themes present, in canonical order, for the filter dropdown
     present = [t for t in THEME_ORDER if any(it["theme"] == t for it in items)]
     opts = '<option value="all">Todos los temas</option>' + "".join(
-        f'<option value="{t}">{_THEME_EMOJI.get(t, "🌐")} {_esc(THEME_LABEL.get(t, t))}</option>'
+        f'<option value="{t}">{_THEME_EMOJI.get(t, "🌐")} {_esc(_SHORT_LABEL.get(t, t))}</option>'
         for t in present
     )
     # players present, by frequency
@@ -128,7 +140,7 @@ def _render(items: list[dict]) -> str:
     for it in items:
         theme = it["theme"]
         emoji = _THEME_EMOJI.get(theme, "🌐")
-        label = _esc(THEME_LABEL.get(theme, theme))
+        label = _esc(_SHORT_LABEL.get(theme, theme))
         nota = f"{it['score']}/100" if it["score"] is not None else it["tier"]
         srcb = f'<span class="src">📡 {it["sources"]}</span>' if it["sources"] > 1 else ""
         date = it["published_at"].strftime("%d/%m") if it["published_at"] else ""
@@ -184,14 +196,24 @@ def _render(items: list[dict]) -> str:
   h1 {{ font-family:var(--sans); font-weight:600; font-size:34px; letter-spacing:-0.02em; margin:0 0 6px; }}
   .sub {{ color:var(--text-muted); font-size:14px; }}
   .accent {{ color:var(--accent-strong); }}
-  .controls {{ display:flex; gap:10px; flex-wrap:wrap; margin:22px 0 26px; }}
+  .controls {{ display:flex; flex-direction:column; gap:10px; margin:22px 0 26px; }}
+  .ctrl-row {{ display:flex; gap:9px; flex-wrap:wrap; align-items:center; }}
+  .ctrl-label {{ font-size:12px; font-weight:600; color:var(--text-soft); text-transform:uppercase;
+                letter-spacing:0.04em; }}
   select {{ font-family:var(--sans); font-size:13px; font-weight:500; color:var(--text);
            background:var(--bg-elev); border:1px solid var(--border-strong); border-radius:999px;
-           padding:8px 14px; cursor:pointer; }}
-  .toggle {{ display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:500;
-            color:var(--text-muted); background:var(--bg-elev); border:1px solid var(--border-strong);
-            border-radius:999px; padding:8px 14px; cursor:pointer; }}
-  .toggle input {{ accent-color:var(--accent-strong); cursor:pointer; margin:0; }}
+           padding:7px 13px; cursor:pointer; }}
+  select:hover {{ border-color:var(--accent-strong); }}
+  /* pretty toggle switch */
+  .switch {{ display:inline-flex; align-items:center; gap:8px; cursor:pointer;
+            font-size:13px; font-weight:500; color:var(--text-muted); margin-left:auto; user-select:none; }}
+  .switch input {{ position:absolute; opacity:0; pointer-events:none; }}
+  .switch .track {{ width:40px; height:23px; border-radius:999px; background:var(--border-strong);
+                   position:relative; transition:background .2s; flex:none; }}
+  .switch .track::after {{ content:""; position:absolute; top:2.5px; left:2.5px; width:18px; height:18px;
+                          border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.3); transition:transform .2s; }}
+  .switch input:checked + .track {{ background:var(--accent-strong); }}
+  .switch input:checked + .track::after {{ transform:translateX(17px); }}
   .card {{ background:var(--bg-elev); border:1px solid var(--border); border-radius:var(--radius-md);
           padding:16px 18px; margin-bottom:12px; box-shadow:var(--shadow-sm); transition:box-shadow .2s,border-color .2s; }}
   .card:hover {{ box-shadow:var(--shadow-md); border-color:var(--border-strong); }}
@@ -216,19 +238,26 @@ def _render(items: list[dict]) -> str:
   <div class="sub"><span id="count">{total}</span> noticias · actualizado {updated}</div>
 </header>
 <div class="controls">
-  <select id="range">
-    <option value="24">Últimas 24h</option>
-    <option value="72">Últimas 72h</option>
-    <option value="168" selected>Última semana</option>
-    <option value="720">Último mes</option>
-  </select>
-  <select id="filter">{opts}</select>
-  <select id="player">{popts}</select>
-  <select id="sort">
-    <option value="rel">Orden: relevancia</option>
-    <option value="date">Orden: más reciente</option>
-  </select>
-  <label class="toggle"><input type="checkbox" id="showlow"> Baja relevancia</label>
+  <div class="ctrl-row">
+    <select id="range" aria-label="Rango temporal">
+      <option value="24">24h</option>
+      <option value="72">72h</option>
+      <option value="168" selected>Semana</option>
+      <option value="720">Mes</option>
+    </select>
+    <select id="sort" aria-label="Orden">
+      <option value="rel">↓ Relevancia</option>
+      <option value="date">↓ Reciente</option>
+    </select>
+    <label class="switch">
+      <input type="checkbox" id="showlow"><span class="track"></span>
+      <span>Baja relevancia</span>
+    </label>
+  </div>
+  <div class="ctrl-row">
+    <span class="ctrl-label">Tema</span><select id="filter">{opts}</select>
+    <span class="ctrl-label">Players</span><select id="player">{popts}</select>
+  </div>
 </div>
 <div id="list">
 {body}

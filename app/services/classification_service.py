@@ -84,7 +84,10 @@ async def backfill_players(session: AsyncSession) -> int:
     )
     changed = 0
     for proc, title in rows.all():
-        text_parts = [title or "", proc.cleaned_summary or ""]
+        # Title + classifier tags only — NOT the summary. The summary carries
+        # passing mentions ("competitors like OpenAI...") that caused false tags;
+        # title + key_topics reflect what the story is actually about.
+        text_parts = [title or ""]
         text_parts.extend(proc.key_topics or [])
         players = detect_players(" \n ".join(text_parts))
         if players != (proc.players or []):
