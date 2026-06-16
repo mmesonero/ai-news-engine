@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.4.0] — 2026-06-16 — Web integration, permanent archive, paginated history
+
+The custom portfolio web page now renders real engine data, the detail pages
+match its design, and the system became a **permanent, paginated archive**.
+
+### Added — web data integration
+- **`data.js`** export (`static_site._emit_data_js`): `window.__NEWS = {now, data:[...]}` in the portfolio `index.html` DATA schema. The index consumes it (falls back to its embedded sample if absent). Theme keys mapped engine→index; each item carries `detail` = `n/<slug>.html`.
+- **Click → detail**: index story titles link to the per-story detail page (same target Telegram uses).
+- **Player logos**: SpaceX, Tesla, Perplexity, DeepSeek, Cursor added (+ swapped Apple→white, Google→color-G). Players without a logo fall back to a colored dot.
+
+### Added — archive model (Phase 1: permanent storage)
+- **Archive-friendly retention** (`retention.py`): past `RETENTION_DAYS` (14) it no longer deletes rows — it drops the embedding + blanks `raw_text` (`embedding_pruned=true`) but KEEPS the `raw_content` row + `processed_content` + cluster **forever**. The site is a permanent archive at ~1KB/story; dedup still has its 14-day window. `RETENTION_DAYS` must stay ≥ `DEDUP_LOOKBACK_DAYS`.
+
+### Added — archive model (Phase 2: paginated history)
+- **Split export**: `data.js` = recent `RECENT_DAYS` (90) for a fast default load; **`data-archive.js`** (`window.__NEWS_ARCHIVE`) = everything older, **lazy-loaded** by the index only when the user picks the "All" range (dedup-merged by slug, fetched once). Shared `now` across both files. Detail pages generated for the whole archive. Keeps the page light while making years reachable on demand.
+- Index range control: **Month** = real 30 days + new **All** = full archive (triggers the lazy load).
+
+### Changed
+- **Detail pages** (`_render_detail`/`_STYLE`/`_nav`) restyled to match the AI News index exactly: `#0D0D0D` plane + warm glows + center vignette, Outfit, gold `#e2ba6b`, nav = "Portfolio · AI News".
+- Static-site bake window 30 → 90 days; UI label "stories" → "news".
+
+### Web (portfolio repo, `mmesonero.github.io/ai-news`)
+- `index.html` background matched to the main portfolio (`#0D0D0D` + vignette 0.35 + glows + grain).
+- Wiring is design-safe: the engine writes only `data.js`, `data-archive.js`, `n/` — never `index.html`.
+
 ## [0.3.0] — 2026-06-16 — Cloud-native, Spanish briefing, Telegram + Web
 
 Major direction change: the project went from a local Docker MVP to a fully

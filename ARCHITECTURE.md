@@ -223,7 +223,12 @@ Player tagging (`ai/players.py`) is deliberately a keyword match over `title` + 
 One message per story. Format: `<emoji> <b>título</b>` / `nota/100 · 📡 N fuentes` / Spanish summary / `Ver en la web →` (links to the detail page). Photo (`sendPhoto`) when an image exists, else text with `disable_web_page_preview` (no link card). Posts are stored (`telegram_message_id`) and edited live as the source count grows. Target is a private channel where the bot is admin with **only** "post messages" — a leaked token can spam but not delete or ban.
 
 ### 10.2 Static web (`app/export/static_site.py`)
-Generates `data.js` (`window.__NEWS = {now, data:[...]}`) + `n/<slug>.html` detail pages. Published to `mmesonero.github.io/ai-news`. **Ownership split**: the engine writes only `data.js` + `n/`; the custom `index.html` is owned by the portfolio repo and is never overwritten. Web card titles and Telegram links share the same detail page (`slug = sha1(rep_url)[:12]`).
+Published to `mmesonero.github.io/ai-news`. **Paginated archive** to stay fast while holding years of history:
+- **`data.js`** (`window.__NEWS = {now, data:[...]}`) — recent `RECENT_DAYS` (90); loaded immediately by `index.html`.
+- **`data-archive.js`** (`window.__NEWS_ARCHIVE`) — everything older; **lazy-loaded** by the index only when the user selects the "All" range (merged by slug, fetched once). Shared `now` so relative dates align.
+- **`n/<slug>.html`** — detail page per story (whole archive), `slug = sha1(rep_url)[:12]`. Restyled to match the index (dark `#0D0D0D` + glows + vignette, Outfit, gold, "Portfolio · AI News" nav).
+
+**Ownership split**: the engine writes only `data.js`, `data-archive.js`, `n/`; the custom `index.html` is owned by the portfolio repo and never overwritten. Web card titles and Telegram links share the same detail page.
 
 ---
 
