@@ -1,0 +1,23 @@
+name: Telegram test (one-off)
+
+# Manual: sends a single test message to TELEGRAM_CHAT_ID to verify the channel
+# id + that the bot is an admin. Delete after confirming.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send test message to the channel
+        env:
+          T: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          C: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          echo "chat_id length: ${#C}"
+          resp=$(curl -s -X POST "https://api.telegram.org/bot${T}/sendMessage" \
+            --data-urlencode "chat_id=${C}" \
+            --data-urlencode "text=✅ Test — canal conectado. Aquí llegarán las noticias de IA." \
+            --data-urlencode "parse_mode=HTML")
+          echo "$resp"
+          echo "$resp" | grep -q '"ok":true' && echo "RESULT: ENVIADO OK" || { echo "RESULT: FALLO"; exit 1; }
