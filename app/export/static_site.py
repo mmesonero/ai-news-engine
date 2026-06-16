@@ -83,8 +83,56 @@ _SHORT_LABEL = {
 }
 
 
+# English theme label + emoji (matches the index THEMES), keyed by engine theme.
+_THEME_EN = {
+    "nuevo_modelo": ("🧠", "Models"),
+    "herramienta_nueva": ("🛠️", "Tools"),
+    "nueva_funcionalidad": ("✨", "Features"),
+    "movimiento_empresarial": ("💼", "Business"),
+    "caso_practico": ("📈", "Cases"),
+    "insight_negocio": ("💡", "Insights"),
+    "ejemplo_uso": ("🧪", "Tutorials"),
+    "noticia_relevante": ("🌐", "Other"),
+}
+
+# Player → logo filename (mirrors the index PLAYER_LOGO) + brand color for the dot fallback.
+_PLAYER_LOGO = {
+    "OpenAI": "openai.png", "Anthropic": "anthropic.png", "Google": "google.webp",
+    "Meta": "meta.png", "NVIDIA": "nvidia.png", "Microsoft": "microsoft.png",
+    "Amazon": "amazon.png", "Apple": "apple.png", "xAI": "xai.png", "Mistral": "mistral.png",
+    "SpaceX": "spacex.png", "Cursor": "cursor.png", "Tesla": "tesla.png",
+    "Perplexity": "perplexity.webp", "DeepSeek": "deepseek.png",
+}
+_PLAYER_COLOR = {
+    "OpenAI": "#10A37F", "Anthropic": "#CC785C", "Google": "#4285F4", "Meta": "#0866FF",
+    "NVIDIA": "#76B900", "Microsoft": "#00A4EF", "Amazon": "#FF9900", "Apple": "#6E6E73",
+    "xAI": "#AAAAAA", "Mistral": "#FF7000", "SpaceX": "#005288", "Cursor": "#000000",
+    "Tesla": "#CC0000", "Perplexity": "#20808D", "DeepSeek": "#4D6BFE",
+}
+
+_SRC_ICON = (
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" '
+    'stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 19.1a10 10 0 0 1 0-14.2"/>'
+    '<path d="M7.8 16.2a6 6 0 0 1 0-8.4"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>'
+    '<path d="M16.2 7.8a6 6 0 0 1 0 8.4"/><path d="M19.1 4.9a10 10 0 0 1 0 14.2"/></svg>'
+)
+
+
 def _esc(s: str | None) -> str:
     return html.escape(s or "")
+
+
+def _player_html(players: list[str] | None) -> str:
+    home = _site_home()
+    parts = []
+    for p in players or []:
+        logo = _PLAYER_LOGO.get(p)
+        if logo:
+            inner = f'<img class="s-player-logo" src="{home}/assets/players/{logo}" alt="{_esc(p)}">'
+        else:
+            inner = f'<span class="s-player-dot" style="background:{_PLAYER_COLOR.get(p, "var(--text-soft)")}"></span>'
+        parts.append(f'<span class="s-player">{inner}{_esc(p)}</span>')
+    return f'<span class="s-players">{"".join(parts)}</span>' if parts else ""
 
 
 _FONT = (
@@ -207,6 +255,27 @@ _STYLE = """
                  background:var(--bg-elev); border:1px solid var(--border-strong); color:var(--text);
                  font-size:13px; font-weight:500; padding:7px 13px; border-radius:999px; transition:border-color .2s,color .2s; }
   .source-chip:hover { border-color:var(--accent-strong); color:var(--accent-strong); }
+  /* index-style header chrome (matches the listing cards) */
+  .s-tags { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:2px 0 6px; }
+  .s-theme { display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:500; color:var(--text-muted); }
+  .s-theme .em { font-size:12px; }
+  .s-players { display:inline-flex; align-items:center; gap:6px; }
+  .s-player { font-size:11.5px; font-weight:500; color:var(--accent-strong); display:inline-flex; align-items:center; gap:5px; }
+  .s-player-logo { width:14px; height:14px; border-radius:3px; object-fit:contain; flex-shrink:0; }
+  .s-player-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; display:inline-block; }
+  .s-player + .s-player::before { content:'·'; margin-right:6px; color:var(--text-soft); }
+  .s-score { flex:0 0 auto; width:40px; height:40px; border-radius:50%; display:grid; place-items:center;
+             position:relative; margin-left:auto;
+             background:conic-gradient(var(--ring) calc(var(--v)*1%), var(--track) 0); --track:var(--border); --ring:var(--accent); }
+  .s-score::before { content:''; position:absolute; inset:3px; border-radius:50%; background:var(--bg); }
+  .s-score b { position:relative; font-size:12px; font-weight:600; color:var(--text); letter-spacing:-0.02em; }
+  .s-tags[data-level="alta"] .s-score { --ring:var(--accent-strong); }
+  .s-tags[data-level="media"] .s-score { --ring:var(--accent); }
+  .s-tags[data-level="baja"] .s-score { --ring:var(--text-soft); }
+  .s-foot { display:flex; align-items:center; gap:10px; margin:16px 0 0; font-size:12.5px; color:var(--text-soft); flex-wrap:wrap; }
+  .s-foot .dot { width:2.5px; height:2.5px; border-radius:50%; background:var(--text-soft); opacity:.7; }
+  .s-foot .s-src { display:inline-flex; align-items:center; gap:6px; }
+  .s-foot .s-src svg { width:12px; height:12px; opacity:.8; }
 """
 
 
@@ -434,23 +503,26 @@ def _render(items: list[dict]) -> str:
 
 def _render_detail(it: dict) -> str:
     theme = it["theme"]
-    emoji = _THEME_EMOJI.get(theme, "🌐")
-    label = _esc(_SHORT_LABEL.get(theme, theme))
-    nota = f"{it['score']}/100" if it["score"] is not None else (it["tier"] or "—")
-    srcb = f'<span class="src">📡 {it["sources"]} fuentes</span>' if it["sources"] > 1 else ""
-    date = it["published_at"].strftime("%d/%m/%Y") if it["published_at"] else ""
-    title = _esc(it["title"] or "(sin título)")
-    summary = _esc(it["summary"]) if it["summary"] else "Sin resumen disponible."
-    chips = "".join(f'<span class="chip">{_esc(p)}</span>' for p in (it.get("players") or []))
-    chips_block = f'<div class="players">{chips}</div>' if chips else ""
-    chips = "".join(
+    emoji, label = _THEME_EN.get(theme, ("🌐", "Other"))
+    tier = it["tier"] or "media"
+    score = it["relevance"] or it["score"] or 0
+    date = it["published_at"].strftime("%d %b %Y") if it["published_at"] else ""
+    title = _esc(it["title"] or "(untitled)")
+    summary = _esc(it["summary"]) if it["summary"] else "No summary available."
+    players_html = _player_html(it.get("players"))
+    n_src = it["sources"]
+    src = (
+        f'<span class="dot"></span><span class="s-src">{_SRC_ICON}{n_src} sources</span>'
+        if n_src > 1 else ""
+    )
+    src_chips = "".join(
         f'<a class="source-chip" href="{_esc(s["url"])}" target="_blank" rel="noopener">↗ {_esc(s["name"])}</a>'
         for s in (it.get("sources_list") or []) if s.get("url")
     )
     source = (
-        f'<div class="sources-label">Fuentes ({len(it.get("sources_list") or [])})</div>'
-        f'<div class="sources-row">{chips}</div>'
-    ) if chips else ""
+        f'<div class="sources-label">Sources ({len(it.get("sources_list") or [])})</div>'
+        f'<div class="sources-row">{src_chips}</div>'
+    ) if src_chips else ""
     img = it.get("image_url")
     hero = f'<img class="hero" src="{_esc(img)}" alt="" loading="lazy">' if img else ""
     og_image = f'<meta property="og:image" content="{_esc(img)}">' if img else ""
@@ -464,14 +536,14 @@ def _render_detail(it: dict) -> str:
 <style>{_STYLE}</style></head><body>
 {_nav()}
 <div class="wrap">
-  <a class="back" href="../index.html">← Volver a AI News</a>
+  <a class="back" href="../index.html">← Back to AI News</a>
   {hero}
-  <div class="meta"><span class="tag">{emoji} {label}</span><span class="nota">{_esc(nota)}</span>{srcb}<span class="date">{date}</span></div>
+  <div class="s-tags" data-level="{tier}">{players_html}<span class="s-theme"><span class="em">{emoji}</span>{label}</span><span class="s-score" style="--v:{score}"><b>{score}</b></span></div>
   <h1 class="detail-title">{title}</h1>
   <p class="detail-sum">{summary}</p>
-  {chips_block}
+  <div class="s-foot"><span>{date}</span>{src}</div>
   {source}
-  <footer>Resumen y clasificación automáticos · <a href="../index.html">← AI News</a></footer>
+  <footer>Auto-summarized &amp; classified · <a href="../index.html">← AI News</a></footer>
 </div>
 </body></html>"""
 
