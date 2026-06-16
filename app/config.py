@@ -15,12 +15,13 @@ class Settings(BaseSettings):
     enable_scheduler: bool = Field(default=True)
 
     database_url: str = Field(
-        default="postgresql+asyncpg://ai:ai@db:5432/ai_news",
-        description="Async SQLAlchemy URL used by the app at runtime.",
+        default="postgresql+asyncpg://ai:ai@localhost:5432/ai_news",
+        description="Async SQLAlchemy URL used by the app at runtime. In the cloud this comes "
+        "from the DATABASE_URL secret (Neon).",
     )
     sync_database_url: str = Field(
-        default="postgresql+psycopg2://ai:ai@db:5432/ai_news",
-        description="Sync URL used by Alembic.",
+        default="postgresql+psycopg2://ai:ai@localhost:5432/ai_news",
+        description="Sync URL used by Alembic. In the cloud: SYNC_DATABASE_URL secret (Neon).",
     )
 
     openai_api_key: str = Field(default="")

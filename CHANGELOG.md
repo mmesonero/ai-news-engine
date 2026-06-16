@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.3.0] — 2026-06-16 — Cloud-native, Spanish briefing, Telegram + Web
+
+Major direction change: the project went from a local Docker MVP to a fully
+cloud-hosted, autonomous pipeline. It now writes a Spanish briefing and delivers
+it to a Telegram channel and a static web page, with no dependency on a PC.
+
+### Added
+- **Cloud execution**: GitHub Actions cron (`.github/workflows/daily.yml`) at 04:00 + 15:00 UTC. Neon Postgres + pgvector. All secrets in GitHub Actions only.
+- **Telegram delivery** (`app/notify/telegram.py`): one message per story to a private channel (bot admin with post-only rights). Photo when an image exists, no link-preview card. Posts are edited live when more sources cover the story.
+- **Static web** (`app/export/static_site.py`): publishes `data.js` (`window.__NEWS`) + per-story `n/<slug>.html` detail pages to `mmesonero.github.io/ai-news`. Ownership split — the engine never overwrites the portfolio's `index.html`. Web card titles and Telegram links share the same detail page.
+- **Spanish localization**: `title_es` + Spanish `cleaned_summary` (enrichment rewrites both).
+- **Classification fields**: `theme` (8 themes), `importance_tier` (alta/media/baja), `players` list.
+- **3-layer dedup**: cosine clustering (0.82) + pairwise LLM same-event judge (cosine band 0.45–0.82 + shared-entity) + holistic LLM grouping (high-confidence). Union-find redirect map; orphan prune/repair.
+- **Cross-source boost**: delivered score `+min(20, (sources−1)×8)` + `📡 N fuentes` counter; duplicates rewarded, not discarded.
+- **Prompt-injection defense**: `ai/sanitize.py` (neutralize + wrap), `INJECTION_GUARD` preamble, closed-enum output validation.
+- **Player tagging** (`ai/players.py`): keyword match over title + key_topics only (never the summary) to avoid false tags.
+- **Images** (`ingestion/image_extract.py`): og:image / twitter:image / YouTube thumb for hero + Telegram photo + og:image.
+- **OpenAI transcription** (`gpt-4o-transcribe`) for videos without subtitles; local Whisper removed.
+- **Retention** (`pipeline/retention.py`): prune raw_content older than `RETENTION_DAYS` (14 in cloud); web bakes 30 days.
+- Migrations 0002–0009 (theme, importance_tier, players, title_es, image_url, embedding_pruned, telegram delivery state, representative index).
+
+### Changed
+- Scheduler: GitHub Actions cron is now the production scheduler; APScheduler kept for optional local runs only.
+- DB connection defaults point at `localhost` (cloud uses Neon secrets).
+
+### Removed
+- **Docker**: `Dockerfile`, `docker-compose.yml`, `docker-compose.viewer.yml`, `.dockerignore`, `Makefile`. The project is cloud-native; the Neon database is the backup. Recover from git history if ever needed.
+- Local Whisper transcription backend.
+
+### Deprecated
+- LinkedIn-angle generation and `linkedin_*` / `novelty_score` / `business_impact_score` / `ai_generated_insights` columns (kept for migration compatibility, unused). `/trending` and `/linkedin-ideas` are legacy.
+
 ## [0.2.0] — 2026-05-30
 
 ### Added

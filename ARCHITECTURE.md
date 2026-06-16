@@ -1,386 +1,277 @@
 # AI News Intelligence Engine — Architecture
 
-> An AI-powered intelligence engine that converts fragmented AI/tech news into unique business insights and LinkedIn-ready strategic content.
+> A cloud-hosted, autonomous engine that converts fragmented AI/tech news into a concise, deduplicated Spanish briefing, delivered to Telegram and a static web page. Volume is a liability; signal is the product.
 
-This document defines the architecture, data model, pipeline, and engineering conventions for the MVP. It is the single source of truth that the implementation follows.
+This document is the single source of truth for the architecture, data model, pipeline, and conventions.
 
 ---
 
 ## 1. Mission
 
-The engine ingests AI/tech/business news from heterogeneous sources, eliminates noise and duplicates, consolidates overlapping stories into a single canonical insight, and emits LinkedIn-ready content angles. It is explicitly **not** an aggregator: volume is a liability, signal is the product.
+Ingest AI/tech/business news from a fixed set of quality sources, eliminate noise and duplicates, consolidate overlapping stories into one canonical insight, write a Spanish summary, and deliver it. Design priorities, in order:
 
-Design priorities, in order:
-
-1. **Signal quality** — every stored item must be defensibly worth a human read.
-2. **Uniqueness** — one event = one cluster, regardless of how many outlets covered it.
-3. **Insight density** — each enriched record carries strategic interpretation, not a headline restatement.
-4. **Modularity** — every stage (ingest, embed, dedupe, cluster, classify, enrich) is independently replaceable.
-5. **Operability** — fault-tolerant scheduled execution, structured logs, idempotent jobs.
+1. **Signal quality** — every delivered item is defensibly worth a human read.
+2. **Uniqueness** — one event = one cluster, no matter how many outlets cover it. Duplicates are *rewarded* (boosted score + source counter), never shown twice.
+3. **Autonomy** — runs entirely in the cloud on a schedule. No PC, no server, no Docker.
+4. **Modularity** — every stage (ingest, embed, dedup, merge, classify, enrich, deliver) is independently re-runnable.
+5. **Safety** — prompt-injection defenses on every LLM call; secrets never leave the CI vault.
 
 ---
 
-## 2. High-Level System View
+## 2. High-level system view
 
 ```
- ┌────────────┐    ┌────────────┐    ┌────────────┐    ┌────────────┐
- │ Ingestors  │ →  │ Raw Store  │ →  │ Embeddings │ →  │  Dedupe    │
- │ RSS/HTML/  │    │ Postgres   │    │ pgvector   │    │  cosine ≥θ │
- │ YouTube    │    │            │    │            │    │            │
- └────────────┘    └────────────┘    └────────────┘    └─────┬──────┘
-                                                             │
-                                                             ▼
- ┌────────────┐    ┌────────────┐    ┌────────────┐    ┌────────────┐
- │ FastAPI    │ ←  │  Enrich    │ ←  │ Classify   │ ←  │ Clustering │
- │ /news      │    │  GPT       │    │ noise vs.  │    │ representative│
- │ /clusters  │    │  insights  │    │  signal    │    │  selection │
- │ /linkedin  │    │            │    │            │    │            │
- └────────────┘    └────────────┘    └────────────┘    └────────────┘
+ GitHub Actions cron (04:00 + 15:00 UTC)
+        │
+        ▼
+ ┌───────────┐   ┌───────────┐   ┌───────────┐   ┌──────────────┐
+ │ Ingest    │ → │ Embed     │ → │ Dedup +   │ → │ LLM merge    │
+ │ RSS/HTML/ │   │ pgvector  │   │ cluster   │   │ (pairwise +  │
+ │ YouTube   │   │           │   │ cosine    │   │  holistic)   │
+ └───────────┘   └───────────┘   └───────────┘   └──────┬───────┘
+                                                        │
+        ┌───────────────────────────────────────────────┘
+        ▼
+ ┌───────────┐   ┌───────────┐   ┌───────────┐   ┌──────────────┐
+ │ Classify  │ → │ Enrich    │ → │ Players + │ → │ Deliver      │
+ │ noise /   │   │ (Spanish  │   │ images    │   │ Telegram +   │
+ │ theme /   │   │  summary  │   │           │   │ static web   │
+ │ tier      │   │  title)   │   │           │   │ (data.js+n/) │
+ └───────────┘   └───────────┘   └───────────┘   └──────────────┘
+                                                        │
+                                                        ▼
+                                                  Retention prune
 ```
 
-The pipeline runs once per day via APScheduler inside the API container (single-process MVP). Each stage reads from and writes to Postgres; no in-memory hand-offs between stages, so any stage can be re-run independently on the records it owns.
+All state lives in Postgres (Neon). No in-memory hand-offs — any stage can be re-run on the records it owns. The scheduler is GitHub Actions cron (UTC, no DST); `app/scheduler/` (APScheduler) exists only for optional local runs.
 
 ---
 
-## 3. Tech Stack
+## 3. Tech stack
 
-| Concern        | Choice                                           |
-| -------------- | ------------------------------------------------ |
-| Language       | Python 3.12                                      |
-| Web framework  | FastAPI                                          |
-| ORM            | SQLAlchemy 2.x (async)                           |
-| DB             | PostgreSQL 16 + `pgvector`                       |
-| Migrations     | Alembic                                          |
-| Embeddings/LLM | OpenAI (`text-embedding-3-small`, `gpt-4o-mini`) |
-| Scheduling     | APScheduler (AsyncIOScheduler)                   |
-| Scraping       | `feedparser`, `httpx`, `BeautifulSoup`, Playwright (optional, deferred) |
-| YouTube        | `youtube-transcript-api`, YouTube Data API v3    |
-| Container      | Docker + Docker Compose                          |
-| Config         | `pydantic-settings` (`.env` driven)              |
-| Logging        | `structlog` JSON, request-id propagation         |
+| Concern | Choice |
+| --- | --- |
+| Language | Python 3.12 |
+| Web framework | FastAPI (local browsing + `/briefing/daily`) |
+| ORM | SQLAlchemy 2.x (async) |
+| DB | **Neon** PostgreSQL + `pgvector` (cloud); any local Postgres+pgvector for dev |
+| Migrations | Alembic |
+| Embeddings | OpenAI `text-embedding-3-small` (1536 dims) |
+| LLM | OpenAI `gpt-4o-mini` (classify / enrich / dedup judges) |
+| Transcription | OpenAI `gpt-4o-transcribe` (videos without subtitles) |
+| Scheduler | **GitHub Actions** cron (prod); APScheduler (local only) |
+| Scraping | `feedparser`, `httpx`, `BeautifulSoup` |
+| Delivery | Telegram Bot API + GitHub Pages static export |
+| Config | `pydantic-settings` (`.env` / env-driven) |
+| Logging | `structlog` JSON, `run_id` propagation |
 
-Model choices are centralized in `app/config.py` so an entire model swap is a single env-var change.
+Model ids are centralized in `app/config.py` — a model swap is one env-var change.
 
 ---
 
-## 4. Repository Layout
+## 4. Repository layout
 
 ```
 ai-news-engine/
-├── ARCHITECTURE.md                ← this file
-├── README.md                      ← setup, runbook
-├── docker-compose.yml             ← postgres + api + worker
-├── Dockerfile
+├── ARCHITECTURE.md                 ← this file
+├── README.md                       ← setup + runbook
+├── SECURITY.md                     ← secret handling
+├── CHANGELOG.md
 ├── pyproject.toml
-├── .env.example
-├── alembic.ini
-├── alembic/
-│   ├── env.py
-│   └── versions/
-│       └── 0001_initial.py
+├── .env.example / .env.cloud.example
+├── alembic/versions/               ← 0001 … 0009
+├── .github/workflows/daily.yml     ← the cloud scheduler (cron + publish)
 └── app/
-    ├── main.py                    ← FastAPI app factory + lifespan
-    ├── config.py                  ← pydantic Settings
-    ├── logging_config.py
-    ├── database.py                ← async engine, session factory
-    ├── models/                    ← SQLAlchemy ORM
-    ├── schemas/                   ← pydantic DTOs
-    ├── repositories/              ← data access (one repo per aggregate)
-    ├── services/                  ← business logic (stateless)
+    ├── main.py                     ← FastAPI factory + lifespan
+    ├── config.py                   ← pydantic Settings
+    ├── database.py                 ← async engine + session factory
+    ├── links.py                    ← story_slug / detail_path / detail_url
+    ├── models/                     ← SQLAlchemy ORM
+    ├── repositories/               ← data access (one repo per aggregate)
+    ├── services/
     │   ├── ingestion_service.py
     │   ├── embedding_service.py
-    │   ├── deduplication_service.py
-    │   ├── clustering_service.py
+    │   ├── dedup_clustering_service.py
+    │   ├── cluster_merger.py        ← pairwise + holistic LLM merge, prune/repair
     │   ├── classification_service.py
-    │   ├── enrichment_service.py
-    │   └── linkedin_service.py
-    ├── ingestion/                 ← source-specific fetchers
-    │   ├── base.py                ← Ingestor protocol
-    │   ├── rss.py
-    │   ├── html.py
-    │   └── youtube.py
+    │   └── enrichment_service.py
+    ├── ingestion/                  ← rss / html / youtube + image_extract + transcript_ytdlp
     ├── ai/
-    │   ├── openai_client.py       ← single OpenAI wrapper, retries, cost log
-    │   └── prompts.py             ← ALL prompts live here, versioned
-    ├── api/
-    │   ├── deps.py                ← DB session, auth (future)
-    │   └── v1/                    ← versioned routes
+    │   ├── openai_client.py        ← single SDK wrapper, retries, cost log
+    │   ├── prompts.py              ← ALL prompts, versioned, with INJECTION_GUARD
+    │   ├── sanitize.py             ← neutralize + wrap untrusted text
+    │   └── players.py              ← player tagging (title + key_topics only)
+    ├── export/
+    │   └── static_site.py          ← data.js + per-story detail pages
+    ├── notify/
+    │   └── telegram.py             ← per-story send + live edit on new sources
     ├── pipeline/
-    │   └── daily.py               ← orchestrates the 9-step run
-    ├── scheduler/
-    │   └── jobs.py                ← APScheduler bootstrap
-    └── seeds/
-        └── sources.py             ← initial source catalog
+    │   ├── daily.py                ← orchestrates the run
+    │   └── retention.py            ← prune old raw_content
+    ├── scheduler/                  ← APScheduler bootstrap (local only)
+    └── seeds/sources.py            ← source catalog (8 RSS)
 ```
 
-Layering rule: `api → services → repositories → models`. Services never import from `api`; repositories never import from `services`. Ingestors and AI clients are leaves consumed by services.
+Layering: `api → services → repositories → models`. Services never import `api`; repositories never import `services`. Ingestors, AI clients, exporters and notifiers are leaves consumed by services / the pipeline.
 
 ---
 
-## 5. Data Model
+## 5. Data model
 
-All tables use `id BIGSERIAL PRIMARY KEY` and `created_at TIMESTAMPTZ DEFAULT now()`. Vector columns require the `pgvector` extension (`CREATE EXTENSION IF NOT EXISTS vector;`).
+All tables use `id BIGSERIAL PRIMARY KEY` + `created_at TIMESTAMPTZ`. Vector columns require `CREATE EXTENSION vector;`.
 
 ### 5.1 `sources`
-
-| column      | type         | notes                              |
-| ----------- | ------------ | ---------------------------------- |
-| id          | bigserial PK |                                    |
-| name        | text         | display name                       |
-| type        | text         | `rss` \| `html` \| `youtube`       |
-| url         | text         | feed URL or channel ID             |
-| active      | boolean      | default true                       |
-| config_json | jsonb        | per-source overrides (selectors…)  |
-| created_at  | timestamptz  |                                    |
-
-Indexes: `(active)`, `(type)`.
+`name`, `type` (`rss`|`html`|`youtube`), `url` (unique), `active`, `config_json` (per-source overrides, resolved YT channel id…), `group_name`.
 
 ### 5.2 `raw_content`
+`source_id` FK, `external_id`, `title`, `url`, `author`, `raw_text`, `published_at`, `fetched_at`, `content_hash` (sha256), `language`, `metadata_json`, plus:
+- `embedding` — pgvector(1536); set null once a duplicate member is pruned.
+- `embedding_pruned` — bool; storage saver flag for duplicate members.
+- `image_url` — hero image (og:image / twitter:image / YouTube thumb).
 
-| column        | type         | notes                                  |
-| ------------- | ------------ | -------------------------------------- |
-| id            | bigserial PK |                                        |
-| source_id     | bigint FK    | → sources.id                           |
-| external_id   | text         | stable id from the source (e.g. GUID)  |
-| title         | text         |                                        |
-| url           | text         | unique within source                   |
-| author        | text         | nullable                               |
-| raw_text      | text         | full body or transcript                |
-| published_at  | timestamptz  | nullable, parsed from source           |
-| fetched_at    | timestamptz  | when ingestor pulled it                |
-| content_hash  | text         | sha256 of normalized text              |
-| language      | text         | ISO 639-1                              |
-| metadata_json | jsonb        | source-specific extras                 |
+Constraints: `UNIQUE (source_id, external_id)`, `UNIQUE (url)`, index on `content_hash`, `published_at DESC`.
 
-Constraints / indexes:
-- `UNIQUE (source_id, external_id)`
-- `UNIQUE (url)`
-- `INDEX (content_hash)`
-- `INDEX (published_at DESC)`
+### 5.3 `processed_content` (1:1 with raw_content)
+- `cleaned_summary` — Spanish executive summary.
+- `title_es` — Spanish title shown on web + Telegram.
+- `theme` — one of the 8 themes (see §8).
+- `importance_tier` — `alta` | `media` | `baja`.
+- `importance_score` — 0–100 (base for the boosted score).
+- `players` — JSON list of tagged entities (OpenAI, Anthropic, Google…).
+- `key_topics` — normalized tags.
+- `is_noise` — gating flag; noise short-circuits enrichment + delivery.
+- `rejected_reason` — nullable.
+- **Legacy / deprecated** (kept for migration compatibility, unused): `novelty_score`, `linkedin_potential_score`, `business_impact_score`, `ai_generated_insights`, `linkedin_angles`.
 
-### 5.3 `embeddings`
+### 5.4 `content_clusters`
+`cluster_topic`, `representative_content_id` FK (canonical item), plus delivery state:
+- `notified_at` — when the story was first sent to Telegram (null = not yet).
+- `telegram_message_id` — to edit the post later.
+- `telegram_sources` — source count at last send (edit when it grows).
 
-| column          | type           | notes                       |
-| --------------- | -------------- | --------------------------- |
-| id              | bigserial PK   |                             |
-| raw_content_id  | bigint FK UQ   | → raw_content.id, 1:1       |
-| embedding       | vector(1536)   | `text-embedding-3-small`    |
-| model           | text           | embedding model id          |
-| created_at      | timestamptz    |                             |
-
-Index: `ivfflat (embedding vector_cosine_ops) WITH (lists = 100)` — built after a warm-up batch.
-
-### 5.4 `processed_content`
-
-| column                    | type         | notes                                |
-| ------------------------- | ------------ | ------------------------------------ |
-| id                        | bigserial PK |                                      |
-| raw_content_id            | bigint FK UQ | → raw_content.id, 1:1                |
-| cleaned_summary           | text         | 3–5 sentence executive summary       |
-| key_topics                | text[]       | normalized lowercase tags            |
-| novelty_score             | int          | 0–100                                |
-| importance_score          | int          | 0–100                                |
-| linkedin_potential_score  | int          | 0–100                                |
-| business_impact_score     | int          | 0–100                                |
-| ai_generated_insights     | jsonb        | structured enrichment object         |
-| linkedin_angles           | jsonb        | hooks/angles/debate/implications     |
-| rejected_reason           | text         | nullable                             |
-| is_noise                  | boolean      | gating flag for downstream consumers |
-| created_at                | timestamptz  |                                      |
-
-### 5.5 `content_clusters`
-
-| column                     | type         | notes                                |
-| -------------------------- | ------------ | ------------------------------------ |
-| id                         | bigserial PK |                                      |
-| cluster_topic              | text         | LLM-named theme                      |
-| representative_content_id  | bigint FK    | → raw_content.id, "canonical" item   |
-| created_at                 | timestamptz  |                                      |
-
-### 5.6 `cluster_items`
-
-| column           | type           | notes                          |
-| ---------------- | -------------- | ------------------------------ |
-| cluster_id       | bigint FK      | → content_clusters.id          |
-| raw_content_id   | bigint FK      | → raw_content.id               |
-| similarity_score | double precision | cosine sim to representative |
-
-Primary key: `(cluster_id, raw_content_id)`.
+### 5.5 `cluster_items`
+PK `(cluster_id, raw_content_id)`, `similarity_score` (cosine to representative).
 
 ---
 
-## 6. Daily Pipeline
+## 6. Daily pipeline (`app/pipeline/daily.py`)
 
-`app/pipeline/daily.py` orchestrates the run. Each step is idempotent and operates on records flagged as "needs stage X" via the presence/absence of dependent rows — no separate status column to keep in sync.
+Each step is idempotent and keys off dependent-row presence. Order:
 
-1. **Fetch sources** — load `active=true` rows from `sources`.
-2. **Extract content** — dispatch to the right ingestor (RSS / HTML / YouTube) per source. Each ingestor yields `RawContentDraft` records.
-3. **Persist raw** — upsert into `raw_content` keyed on `(source_id, external_id)` or `url`. Existing records are skipped, not re-fetched.
-4. **Embed new content** — for every `raw_content` row lacking an `embeddings` row, generate one. Batched (100 per request).
-5. **Deduplicate** —
-   - **Layer 1 (exact):** rejected by the `UNIQUE` constraints at step 3 and by `content_hash` lookup.
-   - **Layer 2 (semantic):** for each new embedding, run `<=> (1 - cosine)` against embeddings from the last N days. If `similarity ≥ THRESHOLD` (default `0.90`), attach to the existing cluster of the nearest neighbour instead of creating a new one.
-6. **Cluster** — items not attached in step 5 either form a new cluster (with themselves as representative) or join one when their nearest neighbour is itself unattached but within threshold (greedy single-link clustering, recomputed daily on the day's new items only — old clusters are not re-shuffled).
-7. **Classify quality** — for every new `raw_content` without a `processed_content` row, call the noise classifier (single LLM call, structured JSON output). Records flagged `is_noise=true` short-circuit: no enrichment, no LinkedIn angles.
-8. **Enrich** — non-noise records get the full enrichment pass: summary, scores, insights, LinkedIn angles. Done **once per cluster** (on the representative) — cluster members inherit the cluster's enrichment via the API, not via row duplication.
-9. **Persist results** — write `processed_content`. Log per-stage metrics (counts, OpenAI token spend, wall time).
+1. **Ingest** — fetch `active` sources, dispatch to RSS/HTML/YouTube ingestor, upsert into `raw_content` keyed on `(source_id, external_id)` / `url`. Existing rows skipped.
+2. **Embed** — embed every `raw_content` lacking an embedding (batched).
+3. **Dedup + cluster** — cosine clustering on the day's new items (threshold `0.82`); near-duplicates attach to the nearest neighbour's cluster instead of forming a new one.
+4. **Merge — pairwise LLM** (`cluster_merger.merge_borderline`) — for candidate pairs (cosine band `0.45–0.82` + shared-entity), an LLM "same event?" judge merges true matches. Loops to convergence; union-find redirect map avoids FK violations. Orphan clusters pruned.
+5. **Merge — holistic LLM** (`merge_by_llm_grouping`, `min_confidence="high"`) — the model sees all remaining clusters and groups same-story clusters pairwise signals missed. Representatives repaired afterward.
+6. **Classify** — for each new representative without a `processed_content` row, one LLM call returns `is_noise`, `theme`, `importance_tier`, `players`. Noise short-circuits.
+7. **Enrich** — non-noise representatives get `title_es` + a Spanish `cleaned_summary`. Done once per cluster; re-runs rows where `cleaned_summary IS NULL OR title_es IS NULL`.
+8. **Players** — backfill player tags from `title` + `key_topics` only (never the free-text summary — passing mentions would create false tags).
+9. **Images** — fetch a hero image (og:image / YouTube thumb) for representatives lacking one.
+10. **Prune duplicate members** — drop embedding + raw_text of non-representative duplicates (rows kept so cross-source counts still work).
+11. **Telegram** — `send_new_stories` posts one message per not-yet-notified story; `update_boosted_stories` edits posts whose source count grew (live boost).
+12. **Retention** — delete `raw_content` older than `RETENTION_DAYS`.
+13. **Publish** (workflow step) — regenerate `data.js` + `n/` and push them to the portfolio repo (never `index.html`).
 
-The whole run is wrapped in a single APScheduler job. Failures in one source do not abort the run; each source is a try/except boundary with structured error logging.
-
----
-
-## 7. Deduplication & Clustering Details
-
-**Two layers, in this order:**
-
-| Layer | Check                            | Action on hit                            |
-| ----- | -------------------------------- | ---------------------------------------- |
-| 1     | `(source_id, external_id)` match | Skip — already ingested.                 |
-| 1     | `url` match                      | Skip.                                    |
-| 1     | `content_hash` match             | Skip — exact text duplicate, different URL. |
-| 2     | cosine ≥ `DEDUP_THRESHOLD`       | Attach to neighbour's cluster, mark as duplicate of representative. |
-
-Threshold is configurable: `DEDUP_THRESHOLD=0.90` by default. Anything in `[0.82, 0.90)` is treated as *related but distinct* — same cluster, different angle. Below `0.82` is a fresh cluster.
-
-The representative for a cluster is the item with the highest `importance_score` after enrichment; until enrichment runs, it's the earliest `published_at`. Representatives are reselected lazily by the API, not stored as a denormalized field that can rot — the column exists for query speed but is recomputed by the enrichment stage on the day a new member joins.
-
-This intentionally avoids global re-clustering: yesterday's clusters are stable. Only today's new items get clustered, then attached to existing clusters where possible.
+Per-source and per-record try/except boundaries: one bad article never aborts a run.
 
 ---
 
-## 8. AI Layer
+## 7. Deduplication, clustering & cross-source boost
 
-All prompts live in `app/ai/prompts.py` as constants. No prompts inline in service code. Each prompt is versioned (`CLASSIFY_NOISE_V1`, `ENRICH_V1`, …) so changes are diff-trackable and an old prompt can be re-run.
+Three layers, in order:
 
-The OpenAI client (`app/ai/openai_client.py`) is the only place we touch the SDK. It enforces:
+| Layer | Check | Action |
+| --- | --- | --- |
+| 1 — exact | `(source_id, external_id)` / `url` / `content_hash` | skip, already ingested |
+| 2 — semantic | cosine ≥ `CLUSTER_THRESHOLD` (`0.82`) | attach to neighbour's cluster |
+| 3a — pairwise LLM | cosine band `0.45–0.82` + shared entity → "same event?" judge | merge on yes |
+| 3b — holistic LLM | all clusters at once, high-confidence grouping | merge same-story clusters |
 
-- exponential backoff retry on `RateLimitError` / 5xx
-- structured JSON output via response_format
-- per-call token logging (input/output) into a `usage_log` table (optional, MVP-friendly)
-- a single switchable model id from settings
+Clustering is **forward-only**: yesterday's clusters are stable; only the day's new items cluster, then attach. Merges use a union-find redirect map so reassigning `representative_content_id` never violates FKs; orphan clusters are pruned and orphan representatives repaired each run.
 
-### 8.1 Noise classifier
-
-Single GPT call. Returns:
-
-```json
-{
-  "category": "valuable" | "medium" | "noise",
-  "reasoning": "...",
-  "tags": ["funding", "model-release", ...]
-}
-```
-
-`category=noise` short-circuits the pipeline. `medium` proceeds to enrichment but is de-prioritized in API ranking.
-
-### 8.2 Enrichment
-
-GPT call per **cluster representative**. Returns:
-
-```json
-{
-  "cleaned_summary": "...",
-  "key_topics": [...],
-  "scores": {
-    "novelty": 0-100,
-    "importance": 0-100,
-    "linkedin_potential": 0-100,
-    "business_impact": 0-100
-  },
-  "insights": {
-    "executive_summary": "...",
-    "business_implications": [...],
-    "emerging_trends": [...],
-    "controversial_angles": [...],
-    "strategic_implications": [...],
-    "startup_implications": [...],
-    "enterprise_implications": [...]
-  }
-}
-```
-
-### 8.3 LinkedIn angles
-
-Separate call, depends on enrichment output. **Never produces finished posts** — it produces raw material:
-
-```json
-{
-  "hooks": [...],
-  "angles": [...],
-  "controversial_points": [...],
-  "business_implications": [...],
-  "future_predictions": [...]
-}
-```
-
-Splitting enrichment and LinkedIn into two calls keeps the LinkedIn voice tunable without re-running the analytical pass.
+**Cross-source boost**: a story's delivered score = `importance_score + min(20, (distinct_sources − 1) × 8)`. More outlets → higher rank + a `📡 N fuentes` counter. When a later duplicate arrives, the Telegram post is edited in place to reflect the new count.
 
 ---
 
-## 9. API Surface
+## 8. Themes
 
-All routes mounted under `/api/v1`. Read endpoints by default exclude `is_noise=true` and items inside a cluster that aren't the representative (set `?include_duplicates=true` to override).
+Eight canonical themes (engine key → web/Telegram label):
 
-| Method | Path                       | Purpose                                     |
-| ------ | -------------------------- | ------------------------------------------- |
-| GET    | `/news`                    | Paginated news feed (cluster representatives), filterable by `topic`, `min_importance`, `since`. |
-| GET    | `/news/{id}`               | Single item with enrichment + LinkedIn payload. |
-| GET    | `/clusters`                | Clusters with member counts.                |
-| GET    | `/clusters/{id}`           | Cluster with full member list.              |
-| GET    | `/trending`                | Top clusters in last 24/72h ranked by member count × importance. |
-| GET    | `/linkedin-ideas`          | Just the LinkedIn payloads, sorted by `linkedin_potential_score`. |
-| GET    | `/sources`                 | List sources.                               |
-| POST   | `/sources`                 | Add a source.                               |
-| POST   | `/reprocess/{id}`          | Re-run the enrichment pass on one raw_content (admin / debugging). |
+`nuevo_modelo` 🧠 Modelos · `herramienta_nueva` 🛠️ Herramientas · `nueva_funcionalidad` ✨ Funciones · `movimiento_empresarial` 💼 Negocio · `caso_practico` 📈 Casos · `insight_negocio` 💡 Insights · `ejemplo_uso` 🧪 Tutoriales · `noticia_relevante` 🌐 Otras.
 
-Pagination: cursor-based on `(published_at, id)` to keep responses stable while ingestion runs.
+The static-site exporter maps these to the portfolio index's own shorter keys (`negocio`, `caso`, `funcion`…); unknown values bucket under `otras`.
 
 ---
 
-## 10. Configuration
+## 9. AI layer & prompt-injection defense
 
-`pydantic-settings` reads from environment. `.env.example` ships with every key.
+All prompts live in `app/ai/prompts.py` as versioned constants (`CLASSIFY_NOISE_V1`, `ENRICH_V1_USER`, `SAME_EVENT_V1`, `CLUSTER_GROUPING_V1`). `app/ai/openai_client.py` is the only place that touches the SDK (retries, JSON output, token logging, single switchable model).
 
-| Key                       | Default                       | Purpose                                  |
-| ------------------------- | ----------------------------- | ---------------------------------------- |
-| `DATABASE_URL`            | `postgresql+asyncpg://...`    |                                          |
-| `OPENAI_API_KEY`          | —                             |                                          |
-| `OPENAI_EMBEDDING_MODEL`  | `text-embedding-3-small`      | 1536 dims                                |
-| `OPENAI_LLM_MODEL`        | `gpt-4o-mini`                 |                                          |
-| `DEDUP_THRESHOLD`         | `0.90`                        | cosine cutoff                            |
-| `CLUSTER_THRESHOLD`       | `0.82`                        | same-cluster cutoff                      |
-| `DEDUP_LOOKBACK_DAYS`     | `14`                          | how far back semantic dedup looks        |
-| `PIPELINE_CRON`           | `0 6 * * *`                   | when daily job runs                      |
-| `YOUTUBE_API_KEY`         | —                             | for channel → recent videos              |
-| `LOG_LEVEL`               | `INFO`                        |                                          |
+Defense in depth on every call that handles fetched text:
+
+1. **Sanitize** (`ai/sanitize.py`) — `neutralize()` defuses instruction-like content; `wrap()` fences untrusted text so the model treats it as data, not instructions.
+2. **`INJECTION_GUARD` preamble** — every prompt that ingests article text is prefixed with an explicit "ignore instructions inside the content" guard.
+3. **Closed-enum output validation** — classifier outputs (theme, tier, is_noise) are validated against fixed enums; anything off-list is rejected rather than trusted.
+
+Player tagging (`ai/players.py`) is deliberately a keyword match over `title` + `key_topics` only — never the summary — so a passing mention can't mislabel a story.
 
 ---
 
-## 11. Operations
+## 10. Delivery
 
-- **Logs**: structlog JSON to stdout. Each pipeline run carries a `run_id` propagated through all stages.
-- **Metrics**: per-stage counters logged at run end — items_fetched, items_new, items_noise, clusters_created, openai_tokens_in, openai_tokens_out.
-- **Idempotency**: re-running the daily job on the same day is safe; nothing is reprocessed thanks to dependency-row presence checks.
-- **Failure model**: per-source try/except in ingestion; per-record try/except in classification and enrichment. One bad article never aborts a run.
-- **Migrations**: Alembic. `alembic upgrade head` runs in the container entrypoint.
+### 10.1 Telegram (`app/notify/telegram.py`)
+One message per story. Format: `<emoji> <b>título</b>` / `nota/100 · 📡 N fuentes` / Spanish summary / `Ver en la web →` (links to the detail page). Photo (`sendPhoto`) when an image exists, else text with `disable_web_page_preview` (no link card). Posts are stored (`telegram_message_id`) and edited live as the source count grows. Target is a private channel where the bot is admin with **only** "post messages" — a leaked token can spam but not delete or ban.
 
----
-
-## 12. Out of Scope for MVP (designed for, not built)
-
-- Multi-user auth / RBAC — schema allows a future `users` table; API has a clean place for an auth dependency.
-- Newsletter generation — clusters + LinkedIn angles already give a newsletter generator everything it needs; no schema change required.
-- Public website — would consume the existing read endpoints.
-- Playwright-driven scraping — `ingestion/html.py` is the extension point; not wired up for MVP.
-- Re-clustering of historical data — daily clustering is forward-only; a future batch job can revisit history without schema changes.
+### 10.2 Static web (`app/export/static_site.py`)
+Generates `data.js` (`window.__NEWS = {now, data:[...]}`) + `n/<slug>.html` detail pages. Published to `mmesonero.github.io/ai-news`. **Ownership split**: the engine writes only `data.js` + `n/`; the custom `index.html` is owned by the portfolio repo and is never overwritten. Web card titles and Telegram links share the same detail page (`slug = sha1(rep_url)[:12]`).
 
 ---
 
-## 13. Engineering Conventions
+## 11. Configuration (`app/config.py`)
 
-- Typed everywhere. `mypy --strict` clean.
-- Services are stateless; everything that mutates goes through a repository.
-- No business logic in routes — routes are thin and call exactly one service method.
-- All AI prompts and model ids live in `ai/`. No magic strings sprinkled in services.
-- One ingestor per source type, implementing the `Ingestor` protocol.
-- Tests (deferred for MVP delivery scope, but folder reserved): unit per service, integration for the pipeline.
+| Key | Default | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` / `SYNC_DATABASE_URL` | localhost | runtime (async) / Alembic (sync); Neon secrets in cloud |
+| `OPENAI_API_KEY` | — | required |
+| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | 1536 dims |
+| `OPENAI_LLM_MODEL` | `gpt-4o-mini` | classify / enrich / judges |
+| `OPENAI_TRANSCRIBE_MODEL` | `gpt-4o-transcribe` | audio |
+| `TRANSCRIBE_BACKEND` | `openai` | `openai` \| `none` |
+| `WHISPER_MAX_PER_RUN` | `15` | cap transcription calls/run |
+| `CLUSTER_THRESHOLD` | `0.82` | same-cluster cosine cutoff |
+| `DEDUP_LOOKBACK_DAYS` | `14` | semantic dedup window |
+| `RETENTION_DAYS` | `30` (cloud: `14`) | prune raw_content older than this |
+| `PUBLIC_SITE_BASE` | `https://mmesonero.github.io/ai-news` | detail-page link base |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | — | delivery (secrets) |
+| `ENABLE_SCHEDULER` | `true` | false → read-only (no in-process cron) |
+| `LOG_LEVEL` | `INFO` | |
+
+---
+
+## 12. Operations
+
+- **Scheduler**: GitHub Actions cron, `04:00` + `15:00` UTC. Best-effort timing (GitHub may delay); no DST. Trigger manually via the Actions tab or `gh workflow run daily.yml`.
+- **Secrets**: live only in GitHub Actions (encrypted, not readable back). Migrations against the cloud DB run only inside Actions. See `SECURITY.md`.
+- **Logs / metrics**: structlog JSON, `run_id` per run; per-stage counters (ingested, clusters, merges, enriched, telegram_sent/edited, images_found, members_pruned) logged at run end.
+- **Idempotency**: re-running a day is safe.
+- **Storage**: duplicate-member embeddings/text pruned + 14-day retention keep Neon's free tier comfortable; the web bakes 30 days for client-side filtering.
+- **YouTube limitation**: transcript downloads are blocked from datacenter IPs, so video transcription is best-effort in the cloud; RSS covers the bulk.
+
+---
+
+## 13. Out of scope (designed for, not built)
+
+- LinkedIn / multi-channel publishing — a future delivery target (the deprecated `linkedin_*` columns predate the current direction).
+- Multi-user auth / RBAC.
+- Re-clustering of historical data — clustering is forward-only; a future batch job can revisit history without schema changes.
+
+---
+
+## 14. Engineering conventions
+
+- Typed throughout.
+- Services are stateless; mutations go through repositories.
+- Routes are thin — one service call each, no business logic.
+- All prompts + model ids live in `ai/`; no magic strings in services.
+- One ingestor per source type.
+- Every LLM call that touches fetched text is sanitized + guarded.

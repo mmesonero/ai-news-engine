@@ -1,6 +1,25 @@
-# Security — setup en 3 pasos
+# Security
 
 > YouTube ya **NO requiere API key** (usamos feeds RSS públicos). Solo necesitas la key de OpenAI.
+
+El proyecto corre en la nube. En producción **los secretos viven solo en GitHub
+Actions** (cifrados, no se pueden volver a leer). El `.env` local es solo para
+desarrollo. Reglas:
+
+| Secreto | Dónde vive | Notas |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | GitHub Actions secret (+ `.env` local) | key de Project con budget mensual |
+| `DATABASE_URL` / `SYNC_DATABASE_URL` | GitHub Actions secret | Neon; nunca en repo |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | GitHub Actions secret | bot admin **solo "post messages"** |
+| `PAGES_TOKEN` | GitHub Actions secret | PAT fine-grained, `Contents: read+write` solo en el repo del portfolio |
+
+- Las migraciones y escrituras contra la BBDD cloud corren **solo dentro de Actions**.
+- El bot de Telegram es admin con **solo** permiso de publicar: borrar/banear/añadir-admins/editar-info **OFF**. Un token filtrado solo podría spamear, no destruir.
+- Defensa contra prompt-injection en cada llamada LLM (sanitize + `INJECTION_GUARD` + validación de enums) — ver `ARCHITECTURE.md` §9.
+
+---
+
+## Defensa local en 3 pasos (desarrollo)
 
 Estas 3 capas cubren el 95% del riesgo real de filtración. Total: ~10 min.
 
@@ -26,7 +45,7 @@ Estas 3 capas cubren el 95% del riesgo real de filtración. Total: ~10 min.
 Copia el template y bloquéalo:
 
 ```powershell
-cd C:\Users\Msonero\ai-news-engine
+cd C:\Users\Msonero\GitHub\ai-news-engine
 copy .env.example .env
 # edita .env con notepad y pega tus keys
 notepad .env
@@ -44,7 +63,7 @@ Esto hace que **git rechace** cualquier commit que contenga algo con pinta de AP
 
 ```powershell
 pip install pre-commit
-cd C:\Users\Msonero\ai-news-engine
+cd C:\Users\Msonero\GitHub\ai-news-engine
 pre-commit install
 ```
 
@@ -95,8 +114,8 @@ type .git\hooks\pre-commit | findstr pre-commit
 **Pasos en orden:**
 
 1. **OpenAI**: https://platform.openai.com/api-keys → click la key → `Revoke`
-2. **YouTube**: Google Cloud Console → Credentials → key → `Delete`
-3. Genera nueva, actualiza `.env`, reinicia: `docker compose restart api`
+2. **Telegram** (si se filtra el token): @BotFather → `/revoke` → genera nuevo token
+3. Genera la nueva key/token, actualiza el **GitHub Actions secret** (Settings → Secrets and variables → Actions) y el `.env` local. El próximo run la usa automáticamente.
 4. Mira el dashboard de uso por actividad anómala las próximas 24h
 
 Tiempo desde detección hasta cerrada: <2 minutos.
