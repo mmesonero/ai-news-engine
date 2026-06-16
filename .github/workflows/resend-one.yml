@@ -1,0 +1,61 @@
+name: Resend one (official sample)
+
+# Manual one-off: reset the single best recent story's Telegram state and re-send
+# it, so we can see one official message in the current format. Delete after.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  resend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SYNC_DATABASE_URL: ${{ secrets.SYNC_DATABASE_URL }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      APP_ENV: sample
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Reset top story + send one
+        run: |
+          python - <<'PY'
+          import asyncio
+          from sqlalchemy import select, desc, func
+          from app.database import SessionLocal
+          from app.models.cluster import ContentCluster
+          from app.models.processed_content import ProcessedContent
+          from app.models.raw_content import RawContent
+          from app.notify.telegram import send_new_stories
+
+          async def main():
+              async with SessionLocal() as s:
+                  tier = func.coalesce(ProcessedContent.importance_score, 0)
+                  row = (await s.execute(
+                      select(ContentCluster)
+                      .join(RawContent, RawContent.id == ContentCluster.representative_content_id)
+                      .join(ProcessedContent, ProcessedContent.raw_content_id == RawContent.id)
+                      .where(ProcessedContent.is_noise.is_(False))
+                      .where(ProcessedContent.theme.isnot(None))
+                      .where(ProcessedContent.theme != "irrelevante")
+                      .order_by(desc(tier))
+                      .limit(1)
+                  )).scalars().first()
+                  if row is None:
+                      print("no story"); return
+                  row.notified_at = None
+                  row.telegram_message_id = None
+                  row.telegram_sources = 0
+                  await s.commit()
+                  print("reset cluster", row.id)
+              async with SessionLocal() as s:
+                  n = await send_new_stories(s, hours=720)
+                  print("sent", n)
+
+          asyncio.run(main())
+          PY
