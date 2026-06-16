@@ -11,6 +11,8 @@ class Settings(BaseSettings):
 
     app_env: str = Field(default="dev")
     log_level: str = Field(default="INFO")
+    # Set false for a read-only viewer (don't start the cron pipeline in-process).
+    enable_scheduler: bool = Field(default=True)
 
     database_url: str = Field(
         default="postgresql+asyncpg://ai:ai@db:5432/ai_news",

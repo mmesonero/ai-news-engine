@@ -30,13 +30,18 @@ log = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    from app.config import settings
+
     configure_logging()
     log.info("app.starting")
-    scheduler = start_scheduler()
+    scheduler = start_scheduler() if settings.enable_scheduler else None
+    if scheduler is None:
+        log.info("scheduler.disabled")
     try:
         yield
     finally:
-        stop_scheduler(scheduler)
+        if scheduler is not None:
+            stop_scheduler(scheduler)
         log.info("app.stopped")
 
 
