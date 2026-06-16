@@ -204,9 +204,10 @@ async def _collect(hours: int, limit: int) -> list[dict]:
         .join(ProcessedContent, ProcessedContent.raw_content_id == RawContent.id)
         .outerjoin(ClusterItem, ClusterItem.raw_content_id == RawContent.id)
         .outerjoin(stats_subq, stats_subq.c.cid == ClusterItem.cluster_id)
+        # Show ALL non-noise stories (even those without a theme/tier from the old
+        # classifier — they bucket under "Otras" and still appear).
         .where(ProcessedContent.is_noise.is_(False))
-        .where(ProcessedContent.theme.isnot(None))
-        .where(ProcessedContent.theme != "irrelevante")
+        .where(or_(ProcessedContent.theme.is_(None), ProcessedContent.theme != "irrelevante"))
         .where(or_(ClusterItem.cluster_id.is_(None), RawContent.id.in_(rep_subq)))
         .where(
             or_(
@@ -214,7 +215,6 @@ async def _collect(hours: int, limit: int) -> list[dict]:
                 (RawContent.published_at.is_(None)) & (RawContent.fetched_at >= since),
             )
         )
-        .where(tier_rank >= 1)
         .order_by(desc(boosted), desc(tier_rank), desc(RawContent.published_at))
         .limit(limit)
     )
@@ -230,7 +230,7 @@ async def _collect(hours: int, limit: int) -> list[dict]:
                 "title": proc.title_es or raw.title,
                 "url": raw.url,
                 "score": proc.importance_score,
-                "tier": proc.importance_tier or "baja",
+                "tier": proc.importance_tier or "",  # "" → not treated as 'baja', shows by default
                 "sources": int(src_count) if src_count else 1,
                 "summary": proc.cleaned_summary,
                 "published_at": raw.published_at,
@@ -267,7 +267,7 @@ def _render(items: list[dict]) -> str:
         theme = it["theme"]
         emoji = _THEME_EMOJI.get(theme, "🌐")
         label = _esc(_SHORT_LABEL.get(theme, theme))
-        nota = f"{it['score']}/100" if it["score"] is not None else it["tier"]
+        nota = f"{it['score']}/100" if it["score"] is not None else (it["tier"] or "—")
         srcb = f'<span class="src">📡 {it["sources"]}</span>' if it["sources"] > 1 else ""
         date = it["published_at"].strftime("%d/%m") if it["published_at"] else ""
         date_attr = it["published_at"].strftime("%Y%m%d") if it["published_at"] else "0"
@@ -369,7 +369,7 @@ def _render_detail(it: dict) -> str:
     theme = it["theme"]
     emoji = _THEME_EMOJI.get(theme, "🌐")
     label = _esc(_SHORT_LABEL.get(theme, theme))
-    nota = f"{it['score']}/100" if it["score"] is not None else it["tier"]
+    nota = f"{it['score']}/100" if it["score"] is not None else (it["tier"] or "—")
     srcb = f'<span class="src">📡 {it["sources"]} fuentes</span>' if it["sources"] > 1 else ""
     date = it["published_at"].strftime("%d/%m/%Y") if it["published_at"] else ""
     title = _esc(it["title"] or "(sin título)")

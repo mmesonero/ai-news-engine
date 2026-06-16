@@ -80,7 +80,7 @@ async def _send_one(client: httpx.AsyncClient, text: str, image_url: str | None 
         # photo failed (bad/blocked image) → fall back to a text message
     data = await _post(
         client, "sendMessage",
-        {"text": text, "parse_mode": "HTML", "disable_web_page_preview": False},
+        {"text": text, "parse_mode": "HTML", "disable_web_page_preview": True},
     )
     return int(data["result"]["message_id"]) if data else None
 
@@ -91,7 +91,7 @@ async def _edit_one(client: httpx.AsyncClient, message_id: int, text: str, is_ph
                                 {"message_id": message_id, "caption": text, "parse_mode": "HTML"}))
     return bool(await _post(client, "editMessageText",
                             {"message_id": message_id, "text": text, "parse_mode": "HTML",
-                             "disable_web_page_preview": False}))
+                             "disable_web_page_preview": True}))
 
 
 def _render_story(
@@ -103,16 +103,19 @@ def _render_story(
     sources: int,
     summary: str | None,
 ) -> str:
-    """Format: <theme emoji> · <nota boosteada> · <título>  [📡N]
-                <descripción breve>
+    """Format:  <emoji> <título>
+                <nota>/100 · 📡N
+
+                <descripción>
+
                 <enlace a la web>"""
     emoji = _THEME_EMOJI.get(theme, "🌐")
     boosted = _boosted(score, sources)
     nota = f"{boosted}/100" if score is not None else (tier or "—")
     t = _esc((title or "(sin título)")[:200])
-    src = f"  📡{sources}" if sources > 1 else ""
-    line1 = f"{emoji} · <b>{nota}</b> · <b>{t}</b>{src}"
-    parts = [line1]
+    src = f"  ·  📡 {sources} fuentes" if sources > 1 else ""
+    head = f"{emoji} <b>{t}</b>\n{nota}{src}"
+    parts = [head]
     if summary:
         parts.append(_esc(summary.strip()[:400]))
     # Link to OUR web detail page (summary + data + source inside), not the source.
