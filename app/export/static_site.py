@@ -30,15 +30,14 @@ def _site_home() -> str:
 
 
 def _nav() -> str:
+    # Matches the AI News index topnav exactly: logo + "Portfolio · AI News".
     home = _site_home()
     return (
         '<nav class="nav"><div class="container nav-inner">'
         f'<a href="{home}/" class="brand" aria-label="Manuel Mesonero">'
-        f'<img src="{home}/assets/logo.png" alt="Manuel Mesonero" class="brand-mark"></a>'
+        f'<img src="{home}/assets/logo.png" alt="MM" class="brand-mark"></a>'
         '<div class="nav-links">'
-        f'<a href="{home}/#work">Work</a><span class="nav-sep">·</span>'
-        f'<a href="{home}/#progress">In Progress</a><span class="nav-sep">·</span>'
-        f'<a href="{home}/#about">About Me</a><span class="nav-sep">·</span>'
+        f'<a href="{home}/">Portfolio</a><span class="nav-sep">·</span>'
         f'<a href="{home}/ai-news/" class="nav-accent">AI News</a>'
         "</div></div></nav>"
     )
@@ -109,18 +108,31 @@ _STYLE = """
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg:#1A1A17; --bg-elev:#22221E; --bg-muted:#22221E;
+      --bg:#0D0D0D; --bg-elev:#1A1A17; --bg-muted:#242420;
       --text:#ECEAE3; --text-muted:#9A938A; --text-soft:#6B655C;
       --border:rgba(236,234,227,0.08); --border-strong:rgba(236,234,227,0.16);
-      --accent:#D4B775; --accent-soft:rgba(212,183,117,0.12); --accent-strong:#E2C589;
+      --accent:#e2ba6b; --accent-soft:rgba(226,186,107,0.12); --accent-strong:#f0cc88;
       --shadow-sm:0 1px 2px rgba(0,0,0,0.30);
-      --shadow-md:0 10px 30px -10px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.30);
+      --shadow-md:0 14px 34px -16px rgba(0,0,0,0.6), 0 2px 6px rgba(0,0,0,0.30);
     }
   }
   * { box-sizing:border-box; }
   body { font-family:var(--sans); background:var(--bg); color:var(--text);
          margin:0; padding:0; font-weight:400; line-height:1.55;
-         -webkit-font-smoothing:antialiased; }
+         -webkit-font-smoothing:antialiased; min-height:100vh; }
+  /* warm wash + vignette — matches the AI News index background */
+  body::before { content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image:
+      radial-gradient(ellipse 900px 700px at 12% 8%, rgba(200,168,100,0.07), transparent 60%),
+      radial-gradient(ellipse 800px 600px at 88% 82%, rgba(200,168,100,0.06), transparent 60%),
+      radial-gradient(ellipse 1400px 900px at 50% 50%, transparent 0%, rgba(26,24,21,0.03) 80%); }
+  @media (prefers-color-scheme: dark) {
+    body::before { background-image:
+      radial-gradient(ellipse 900px 700px at 12% 8%, rgba(226,186,107,0.06), transparent 60%),
+      radial-gradient(ellipse 800px 600px at 88% 82%, rgba(226,186,107,0.05), transparent 60%),
+      radial-gradient(ellipse 1400px 900px at 50% 50%, transparent 0%, rgba(0,0,0,0.35) 90%); }
+  }
+  .nav, .wrap { position:relative; z-index:1; }
   .wrap { max-width:760px; margin:0 auto; padding:40px 22px 64px; }
   /* nav (matches mmesonero.github.io) */
   .container { max-width:var(--container); margin:0 auto; padding:0 32px; }
