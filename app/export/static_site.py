@@ -464,10 +464,10 @@ def _render_detail(it: dict) -> str:
 </body></html>"""
 
 
-def _data_payload(items: list[dict]) -> dict:
+def _data_payload(items: list[dict], now: int) -> dict:
     """Real news in the custom portfolio index.html schema (DATA array shape).
-    The index renders this; `detail` is the per-story page Telegram also links to."""
-    now = int(datetime.now(timezone.utc).timestamp())
+    The index renders this; `detail` is the per-story page Telegram also links to.
+    `now` is shared across data.js + data-archive.js so relative dates line up."""
     data = []
     for it in items:
         ts = it["ts"] or now
@@ -494,30 +494,52 @@ def _data_payload(items: list[dict]) -> dict:
     return {"now": now, "data": data}
 
 
-def _emit_data_js(items: list[dict]) -> str:
-    return "window.__NEWS = " + json.dumps(_data_payload(items), ensure_ascii=False) + ";\n"
+def _emit_data_js(items: list[dict], now: int) -> str:
+    return "window.__NEWS = " + json.dumps(_data_payload(items, now), ensure_ascii=False) + ";\n"
+
+
+def _emit_archive_js(items: list[dict], now: int) -> str:
+    # Lazy-loaded by the index when the user picks "All" — older than the recent window.
+    return "window.__NEWS_ARCHIVE = " + json.dumps(_data_payload(items, now), ensure_ascii=False) + ";\n"
+
+
+# Stories newer than this go in data.js (fast default load); older go in data-archive.js
+# (lazy-loaded on demand). The DB keeps metadata forever (archive-friendly retention).
+RECENT_DAYS = 90
 
 
 async def main(out_path: str) -> None:
     import os
 
-    items = await _collect(hours=2160, limit=1000)  # bake 90 days (archive); client filters by range
+    now = int(datetime.now(timezone.utc).timestamp())
+    # Pull the whole archive; split into recent (data.js) + older (data-archive.js).
+    all_items = await _collect(hours=24 * 3650, limit=5000)
+    cut = now - RECENT_DAYS * 86400
+    recent = [it for it in all_items if (it["ts"] or now) >= cut]
+    archive = [it for it in all_items if (it["ts"] or now) < cut]
+
     out_dir = os.path.dirname(os.path.abspath(out_path)) or "."
     os.makedirs(out_dir, exist_ok=True)
-    # index
+    # index (rendered from the recent set; client filters by range)
     with open(out_path, "w", encoding="utf-8") as f:
-        f.write(_render(items))
-    # data.js — real news consumed by the custom portfolio index.html (window.__NEWS)
+        f.write(_render(recent))
+    # data.js — recent news (window.__NEWS), loaded immediately by index.html
     with open(os.path.join(out_dir, "data.js"), "w", encoding="utf-8") as f:
-        f.write(_emit_data_js(items))
-    # per-story detail pages under <out_dir>/n/<slug>.html
+        f.write(_emit_data_js(recent, now))
+    # data-archive.js — older news (window.__NEWS_ARCHIVE), lazy-loaded on "All"
+    with open(os.path.join(out_dir, "data-archive.js"), "w", encoding="utf-8") as f:
+        f.write(_emit_archive_js(archive, now))
+    # per-story detail pages for the WHOLE archive (recent + old)
     n_dir = os.path.join(out_dir, "n")
     os.makedirs(n_dir, exist_ok=True)
-    for it in items:
+    for it in all_items:
         slug = story_slug(it["url"])
         with open(os.path.join(n_dir, f"{slug}.html"), "w", encoding="utf-8") as f:
             f.write(_render_detail(it))
-    print(f"wrote {out_path} + data.js + {len(items)} detail pages")
+    print(
+        f"wrote {out_path} + data.js ({len(recent)}) + data-archive.js ({len(archive)}) "
+        f"+ {len(all_items)} detail pages"
+    )
 
 
 if __name__ == "__main__":

@@ -84,6 +84,7 @@ jobs:
           mkdir -p out/ai-news/n
           cp -r site/n/. out/ai-news/n/
           cp site/data.js out/ai-news/data.js
+          cp site/data-archive.js out/ai-news/data-archive.js
           cd out
           git config user.name "ai-news-bot"
           git config user.email "noreply@users.noreply.github.com"
