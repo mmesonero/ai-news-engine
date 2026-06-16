@@ -40,3 +40,5 @@ class RawContent(Base):
     # Set when a duplicate member's embedding + raw_text were dropped to save space.
     # Stops embed_pending from re-embedding it; the row stays for cross-source counts.
     embedding_pruned: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # Article image (og:image / RSS media / YouTube thumb) for web hero + Telegram photo.
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)

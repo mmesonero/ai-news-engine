@@ -32,4 +32,5 @@ class ProcessedContent(Base):
     theme: Mapped[str | None] = mapped_column(Text, nullable=True)
     importance_tier: Mapped[str | None] = mapped_column(Text, nullable=True)
     players: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
+    title_es: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -171,6 +171,8 @@ _STYLE = """
   .source-btn { display:inline-block; background:var(--accent-strong); color:#fff; text-decoration:none;
                 font-weight:600; font-size:14px; padding:11px 20px; border-radius:999px; margin-top:8px; }
   .source-btn:hover { filter:brightness(1.06); }
+  .hero { width:100%; max-height:360px; object-fit:cover; border-radius:var(--radius-md);
+          border:1px solid var(--border); margin:6px 0 20px; display:block; }
 """
 
 
@@ -225,7 +227,7 @@ async def _collect(hours: int, limit: int) -> list[dict]:
         items.append(
             {
                 "theme": proc.theme or "noticia_relevante",
-                "title": raw.title,
+                "title": proc.title_es or raw.title,
                 "url": raw.url,
                 "score": proc.importance_score,
                 "tier": proc.importance_tier or "baja",
@@ -235,6 +237,7 @@ async def _collect(hours: int, limit: int) -> list[dict]:
                 "ts": int(when.timestamp()) if when else 0,
                 "relevance": int(boost) if boost is not None else 0,
                 "players": proc.players or [],
+                "image_url": raw.image_url,
             }
         )
     return items
@@ -377,16 +380,21 @@ def _render_detail(it: dict) -> str:
         f'<a class="source-btn" href="{_esc(it["url"])}" target="_blank" rel="noopener">Ver fuente original →</a>'
         if it["url"] else ""
     )
+    img = it.get("image_url")
+    hero = f'<img class="hero" src="{_esc(img)}" alt="" loading="lazy">' if img else ""
+    og_image = f'<meta property="og:image" content="{_esc(img)}">' if img else ""
     return f"""<!DOCTYPE html>
 <html lang="es"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title} — AI News</title>
 <meta name="description" content="{_esc((it['summary'] or '')[:150])}">
+<meta property="og:title" content="{title}">{og_image}
 {_FONT}
 <style>{_STYLE}</style></head><body>
 {_nav()}
 <div class="wrap">
   <a class="back" href="../index.html">← Volver a AI News</a>
+  {hero}
   <div class="meta"><span class="tag">{emoji} {label}</span><span class="nota">{_esc(nota)}</span>{srcb}<span class="date">{date}</span></div>
   <h1 class="detail-title">{title}</h1>
   <p class="detail-sum">{summary}</p>

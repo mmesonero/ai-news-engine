@@ -58,7 +58,11 @@ class EnrichmentService:
             .join(RawContent, RawContent.id == ContentCluster.representative_content_id)
             .outerjoin(ProcessedContent, ProcessedContent.raw_content_id == ContentCluster.representative_content_id)
             .where(
-                (ProcessedContent.cleaned_summary.is_(None))
+                (
+                    (ProcessedContent.cleaned_summary.is_(None))
+                    # re-enrich English-era rows that lack the Spanish title → re-translate
+                    | (ProcessedContent.title_es.is_(None))
+                )
                 & (ProcessedContent.is_noise.is_(False))
             )
         )
@@ -107,6 +111,7 @@ class EnrichmentService:
         await self.proc_repo.upsert_for(
             raw_content_id=representative_id,
             cleaned_summary=summary,
+            title_es=enrichment.get("title_es") or None,
             key_topics=topics,
             novelty_score=_safe_int(scores.get("novelty")),
             importance_score=_safe_int(scores.get("importance")),

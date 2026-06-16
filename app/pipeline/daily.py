@@ -8,6 +8,7 @@ import structlog
 from app.database import SessionLocal
 from app.logging_config import configure_logging, get_logger
 from app.notify.telegram import send_new_stories, update_boosted_stories
+from app.ingestion.image_extract import backfill_images
 from app.services.classification_service import ClassificationService, backfill_players
 from app.services.cluster_merger import (
     ClusterMergerService,
@@ -76,6 +77,10 @@ async def run_daily_pipeline() -> dict[str, int]:
     # Tag items with the top players involved (free keyword match; current + future).
     async with SessionLocal() as session:
         metrics["players_tagged"] = await backfill_players(session)
+
+    # Fetch a hero image (og:image / YouTube thumb) for stories that lack one.
+    async with SessionLocal() as session:
+        metrics["images_found"] = await backfill_images(session)
 
     # Storage saver: drop heavy embedding + raw_text of duplicate members
     # (rows kept so cross-source counts still work).

@@ -53,51 +53,45 @@ def _boosted(score: int | None, sources: int) -> int:
     return (score or 0) + min(20, max(0, sources - 1) * 8)
 
 
-async def _send_one(client: httpx.AsyncClient, text: str) -> int | None:
-    """Send a message; return the Telegram message_id on success, else None."""
-    url = _TG_API.format(token=settings.telegram_bot_token)
+def _api(method: str) -> str:
+    return _TG_API.format(token=settings.telegram_bot_token).replace("sendMessage", method)
+
+
+async def _post(client: httpx.AsyncClient, method: str, payload: dict) -> dict | None:
     try:
-        r = await client.post(
-            url,
-            json={
-                "chat_id": settings.telegram_chat_id,
-                "text": text,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": False,
-            },
-        )
+        r = await client.post(_api(method), json={"chat_id": settings.telegram_chat_id, **payload})
         data = r.json()
-        if r.status_code != 200 or not data.get("ok"):
-            log.warning("telegram.send_failed", status=r.status_code, body=r.text[:200])
-            return None
-        return int(data["result"]["message_id"])
+        if data.get("ok") or "not modified" in (data.get("description") or ""):
+            return data
+        log.warning("telegram.api_failed", method=method, body=r.text[:200])
+        return None
     except Exception as e:
-        log.warning("telegram.send_error", err=str(e)[:200])
+        log.warning("telegram.api_error", method=method, err=str(e)[:160])
         return None
 
 
-async def _edit_one(client: httpx.AsyncClient, message_id: int, text: str) -> bool:
-    url = _TG_API.format(token=settings.telegram_bot_token).replace("sendMessage", "editMessageText")
-    try:
-        r = await client.post(
-            url,
-            json={
-                "chat_id": settings.telegram_chat_id,
-                "message_id": message_id,
-                "text": text,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": False,
-            },
-        )
-        data = r.json()
-        # "message is not modified" is a benign 400 — treat as success.
-        if data.get("ok") or "not modified" in (data.get("description") or ""):
-            return True
-        log.warning("telegram.edit_failed", body=r.text[:200])
-        return False
-    except Exception as e:
-        log.warning("telegram.edit_error", err=str(e)[:200])
-        return False
+async def _send_one(client: httpx.AsyncClient, text: str, image_url: str | None = None) -> int | None:
+    """Send a photo (with caption) when an image is available, else a text message.
+    Falls back to text if the photo send fails. Returns the message_id or None."""
+    if image_url:
+        data = await _post(client, "sendPhoto", {"photo": image_url, "caption": text, "parse_mode": "HTML"})
+        if data:
+            return int(data["result"]["message_id"])
+        # photo failed (bad/blocked image) → fall back to a text message
+    data = await _post(
+        client, "sendMessage",
+        {"text": text, "parse_mode": "HTML", "disable_web_page_preview": False},
+    )
+    return int(data["result"]["message_id"]) if data else None
+
+
+async def _edit_one(client: httpx.AsyncClient, message_id: int, text: str, is_photo: bool) -> bool:
+    if is_photo:
+        return bool(await _post(client, "editMessageCaption",
+                                {"message_id": message_id, "caption": text, "parse_mode": "HTML"}))
+    return bool(await _post(client, "editMessageText",
+                            {"message_id": message_id, "text": text, "parse_mode": "HTML",
+                             "disable_web_page_preview": False}))
 
 
 def _render_story(
@@ -174,7 +168,7 @@ async def send_new_stories(session: AsyncSession, hours: int = 48, max_send: int
         for cluster, raw, proc, src_count, _rank in rows:
             text = _render_story(
                 theme=proc.theme or "noticia_relevante",
-                title=raw.title,
+                title=proc.title_es or raw.title,
                 url=raw.url,
                 score=proc.importance_score,
                 tier=proc.importance_tier or "baja",
@@ -182,7 +176,7 @@ async def send_new_stories(session: AsyncSession, hours: int = 48, max_send: int
                 summary=proc.cleaned_summary,
             )
             n_src = int(src_count) if src_count else 1
-            msg_id = await _send_one(client, text)
+            msg_id = await _send_one(client, text, image_url=raw.image_url)
             if msg_id is not None:
                 cluster.notified_at = now
                 cluster.telegram_message_id = msg_id
@@ -222,14 +216,14 @@ async def update_boosted_stories(session: AsyncSession, max_edits: int = 30) -> 
             n_src = int(src_count) if src_count else 1
             text = _render_story(
                 theme=proc.theme or "noticia_relevante",
-                title=raw.title,
+                title=proc.title_es or raw.title,
                 url=raw.url,
                 score=proc.importance_score,
                 tier=proc.importance_tier or "baja",
                 sources=n_src,
                 summary=proc.cleaned_summary,
             )
-            if await _edit_one(client, cluster.telegram_message_id, text):
+            if await _edit_one(client, cluster.telegram_message_id, text, is_photo=bool(raw.image_url)):
                 cluster.telegram_sources = n_src
                 await session.commit()
                 edited += 1
