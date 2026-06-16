@@ -18,8 +18,29 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import case, desc, func, or_, select
 
 from app.api.v1.briefing import THEME_LABEL, THEME_ORDER
+from app.config import settings
 from app.database import SessionLocal
 from app.links import detail_path, story_slug
+
+
+def _site_home() -> str:
+    base = settings.public_site_base.rstrip("/")
+    return base[:-len("/ai-news")] if base.endswith("/ai-news") else base
+
+
+def _nav() -> str:
+    home = _site_home()
+    return (
+        '<nav class="nav"><div class="container nav-inner">'
+        f'<a href="{home}/" class="brand" aria-label="Manuel Mesonero">'
+        f'<img src="{home}/assets/logo.png" alt="Manuel Mesonero" class="brand-mark"></a>'
+        '<div class="nav-links">'
+        f'<a href="{home}/#work">Work</a><span class="nav-sep">·</span>'
+        f'<a href="{home}/#progress">In Progress</a><span class="nav-sep">·</span>'
+        f'<a href="{home}/#about">About Me</a><span class="nav-sep">·</span>'
+        f'<a href="{home}/ai-news/" class="nav-accent">AI News</a>'
+        "</div></div></nav>"
+    )
 from app.models.cluster import ClusterItem, ContentCluster
 from app.models.processed_content import ProcessedContent
 from app.models.raw_content import RawContent
@@ -68,7 +89,8 @@ _STYLE = """
     --shadow-sm:0 1px 2px rgba(26,24,21,0.04);
     --shadow-md:0 8px 24px -8px rgba(26,24,21,0.10), 0 2px 6px rgba(26,24,21,0.05);
     --sans:'Outfit','Inter',-apple-system,BlinkMacSystemFont,sans-serif;
-    --radius-sm:8px; --radius-md:14px;
+    --mono:'Outfit','Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+    --radius-sm:8px; --radius-md:14px; --container:1180px;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -82,9 +104,27 @@ _STYLE = """
   }
   * { box-sizing:border-box; }
   body { font-family:var(--sans); background:var(--bg); color:var(--text);
-         margin:0; padding:48px 22px 64px; font-weight:400; line-height:1.55;
+         margin:0; padding:0; font-weight:400; line-height:1.55;
          -webkit-font-smoothing:antialiased; }
-  .wrap { max-width:760px; margin:0 auto; }
+  .wrap { max-width:760px; margin:0 auto; padding:40px 22px 64px; }
+  /* nav (matches mmesonero.github.io) */
+  .container { max-width:var(--container); margin:0 auto; padding:0 32px; }
+  .nav { position:sticky; top:0; z-index:50; backdrop-filter:blur(14px) saturate(1.2);
+         -webkit-backdrop-filter:blur(14px) saturate(1.2);
+         background:color-mix(in oklab, var(--bg) 78%, transparent);
+         border-bottom:1px solid transparent; }
+  .nav-inner { display:flex; align-items:center; justify-content:center; height:72px; gap:32px; }
+  .brand { display:flex; align-items:center; }
+  .brand-mark { height:42px; width:auto; display:block; transition:transform .4s; }
+  .brand:hover .brand-mark { transform:scale(1.04); }
+  .nav-links { display:flex; gap:18px; font-size:12px; font-weight:400; font-family:var(--mono);
+               letter-spacing:0.22em; text-transform:uppercase; color:var(--text-muted); align-items:center; }
+  .nav-links a { position:relative; text-decoration:none; color:var(--text-muted); white-space:nowrap; transition:color .2s ease; }
+  .nav-links a:hover { color:var(--text); }
+  .nav-sep { color:var(--text-soft); font-family:var(--mono); font-size:11px; }
+  .nav-accent { color:var(--accent) !important; }
+  .nav-accent:hover { color:var(--accent-strong) !important; }
+  @media (max-width:640px) { .nav-links { gap:10px; font-size:10px; letter-spacing:0.16em; } .nav-sep { font-size:9px; } .brand-mark { height:34px; } .container { padding:0 22px; } }
   header { margin-bottom:22px; }
   h1 { font-family:var(--sans); font-weight:600; font-size:34px; letter-spacing:-0.02em; margin:0 0 6px; }
   .sub { color:var(--text-muted); font-size:14px; }
@@ -249,6 +289,7 @@ def _render(items: list[dict]) -> str:
 <meta name="description" content="Briefing diario de noticias de IA, deduplicado y clasificado automáticamente.">
 {_FONT}
 <style>{_STYLE}</style></head><body>
+{_nav()}
 <div class="wrap">
 <header>
   <h1>AI <span class="accent">News</span></h1>
@@ -279,7 +320,7 @@ def _render(items: list[dict]) -> str:
 <div id="list">
 {body}
 </div>
-<footer>Recopilado y clasificado automáticamente · dedup semántico + IA · <a href="/">← mmesonero</a></footer>
+<footer>Recopilado y clasificado automáticamente · dedup semántico + IA · <a href="{_site_home()}/">← mmesonero</a></footer>
 </div>
 <script>
 (function() {{
@@ -343,6 +384,7 @@ def _render_detail(it: dict) -> str:
 <meta name="description" content="{_esc((it['summary'] or '')[:150])}">
 {_FONT}
 <style>{_STYLE}</style></head><body>
+{_nav()}
 <div class="wrap">
   <a class="back" href="../index.html">← Volver a AI News</a>
   <div class="meta"><span class="tag">{emoji} {label}</span><span class="nota">{_esc(nota)}</span>{srcb}<span class="date">{date}</span></div>
