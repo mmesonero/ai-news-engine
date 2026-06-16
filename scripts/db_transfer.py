@@ -132,7 +132,7 @@ async def load(path: str) -> None:
                 if sid is None:
                     continue
                 pub = datetime.fromisoformat(it["published_at"]) if it["published_at"] else None
-                raw = await repo.add(
+                raw = await repo.upsert(
                     source_id=sid, external_id=it.get("external_id"), title=it["title"],
                     url=it["url"], author=it.get("author"), raw_text=it.get("raw_text") or "",
                     published_at=pub, content_hash=it["content_hash"],
