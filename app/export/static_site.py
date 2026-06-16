@@ -44,6 +44,7 @@ def _nav() -> str:
 from app.models.cluster import ClusterItem, ContentCluster
 from app.models.processed_content import ProcessedContent
 from app.models.raw_content import RawContent
+from app.models.source import Source
 
 _THEME_EMOJI = {
     "nuevo_modelo": "🧠",
@@ -173,6 +174,13 @@ _STYLE = """
   .source-btn:hover { filter:brightness(1.06); }
   .hero { width:100%; max-height:360px; object-fit:cover; border-radius:var(--radius-md);
           border:1px solid var(--border); margin:6px 0 20px; display:block; }
+  .sources-label { font-size:12px; font-weight:600; color:var(--text-soft); text-transform:uppercase;
+                   letter-spacing:0.04em; margin:24px 0 8px; }
+  .sources-row { display:flex; gap:8px; flex-wrap:wrap; }
+  .source-chip { display:inline-flex; align-items:center; gap:5px; text-decoration:none;
+                 background:var(--bg-elev); border:1px solid var(--border-strong); color:var(--text);
+                 font-size:13px; font-weight:500; padding:7px 13px; border-radius:999px; transition:border-color .2s,color .2s; }
+  .source-chip:hover { border-color:var(--accent-strong); color:var(--accent-strong); }
 """
 
 
@@ -218,28 +226,57 @@ async def _collect(hours: int, limit: int) -> list[dict]:
         .order_by(desc(boosted), desc(tier_rank), desc(RawContent.published_at))
         .limit(limit)
     )
+    items: list[dict] = []
     async with SessionLocal() as session:
         rows = (await session.execute(stmt)).all()
+        for raw, proc, src_count, _rank, boost in rows:
+            when = raw.published_at or raw.fetched_at
+            # Gather EVERY outlet that covered this story (one chip per source).
+            cid = (
+                await session.execute(
+                    select(ClusterItem.cluster_id).where(ClusterItem.raw_content_id == raw.id)
+                )
+            ).scalar_one_or_none()
+            sources_list: list[dict] = []
+            if cid is not None:
+                mem = await session.execute(
+                    select(Source.name, RawContent.url, RawContent.id)
+                    .join(ClusterItem, ClusterItem.raw_content_id == RawContent.id)
+                    .join(Source, Source.id == RawContent.source_id)
+                    .where(ClusterItem.cluster_id == cid)
+                )
+                seen: set[str] = set()
+                for name, url, rid in mem.all():
+                    nm = name or "fuente"
+                    if nm in seen:
+                        continue
+                    seen.add(nm)
+                    # representative first
+                    entry = {"name": nm, "url": url}
+                    (sources_list.insert(0, entry) if rid == raw.id else sources_list.append(entry))
+            if not sources_list:
+                sname = (
+                    await session.execute(select(Source.name).where(Source.id == raw.source_id))
+                ).scalar_one_or_none()
+                sources_list = [{"name": sname or "fuente", "url": raw.url}]
 
-    items: list[dict] = []
-    for raw, proc, src_count, _rank, boost in rows:
-        when = raw.published_at or raw.fetched_at
-        items.append(
-            {
-                "theme": proc.theme or "noticia_relevante",
-                "title": proc.title_es or raw.title,
-                "url": raw.url,
-                "score": proc.importance_score,
-                "tier": proc.importance_tier or "",  # "" → not treated as 'baja', shows by default
-                "sources": int(src_count) if src_count else 1,
-                "summary": proc.cleaned_summary,
-                "published_at": raw.published_at,
-                "ts": int(when.timestamp()) if when else 0,
-                "relevance": int(boost) if boost is not None else 0,
-                "players": proc.players or [],
-                "image_url": raw.image_url,
-            }
-        )
+            items.append(
+                {
+                    "theme": proc.theme or "noticia_relevante",
+                    "title": proc.title_es or raw.title,
+                    "url": raw.url,
+                    "score": proc.importance_score,
+                    "tier": proc.importance_tier or "",  # "" → not treated as 'baja', shows by default
+                    "sources": int(src_count) if src_count else 1,
+                    "sources_list": sources_list,
+                    "summary": proc.cleaned_summary,
+                    "published_at": raw.published_at,
+                    "ts": int(when.timestamp()) if when else 0,
+                    "relevance": int(boost) if boost is not None else 0,
+                    "players": proc.players or [],
+                    "image_url": raw.image_url,
+                }
+            )
     return items
 
 
@@ -258,9 +295,12 @@ def _render(items: list[dict]) -> str:
         for p in it.get("players") or []:
             pcount[p] = pcount.get(p, 0) + 1
     players_present = sorted(pcount, key=lambda p: -pcount[p])
+    no_player = sum(1 for it in items if not (it.get("players") or []))
     popts = '<option value="all">Todos los players</option>' + "".join(
         f'<option value="{_esc(p)}">{_esc(p)} ({pcount[p]})</option>' for p in players_present
     )
+    if no_player:
+        popts += f'<option value="__none__">Otros ({no_player})</option>'
 
     cards = []
     for it in items:
@@ -303,8 +343,8 @@ def _render(items: list[dict]) -> str:
     <select id="range" aria-label="Rango temporal">
       <option value="24">24h</option>
       <option value="72">72h</option>
-      <option value="168" selected>Semana</option>
-      <option value="720">Mes</option>
+      <option value="168">Semana</option>
+      <option value="720" selected>Mes</option>
     </select>
     <select id="sort" aria-label="Orden">
       <option value="rel">↓ Relevancia</option>
@@ -341,7 +381,8 @@ def _render(items: list[dict]) -> str:
     var cutoff = (Date.now() / 1000) - hours * 3600;
     var vis = cards.filter(function(c) {{
       if (f !== 'all' && c.dataset.theme !== f) return false;
-      if (p !== 'all' && ('|' + c.dataset.players + '|').indexOf('|' + p + '|') === -1) return false;
+      if (p === '__none__') {{ if (c.dataset.players) return false; }}
+      else if (p !== 'all' && ('|' + c.dataset.players + '|').indexOf('|' + p + '|') === -1) return false;
       if (!showLow && c.dataset.tier === 'baja') return false;
       var ts = parseInt(c.dataset.ts, 10);
       return ts >= cutoff;
@@ -376,10 +417,14 @@ def _render_detail(it: dict) -> str:
     summary = _esc(it["summary"]) if it["summary"] else "Sin resumen disponible."
     chips = "".join(f'<span class="chip">{_esc(p)}</span>' for p in (it.get("players") or []))
     chips_block = f'<div class="players">{chips}</div>' if chips else ""
-    source = (
-        f'<a class="source-btn" href="{_esc(it["url"])}" target="_blank" rel="noopener">Ver fuente original →</a>'
-        if it["url"] else ""
+    chips = "".join(
+        f'<a class="source-chip" href="{_esc(s["url"])}" target="_blank" rel="noopener">↗ {_esc(s["name"])}</a>'
+        for s in (it.get("sources_list") or []) if s.get("url")
     )
+    source = (
+        f'<div class="sources-label">Fuentes ({len(it.get("sources_list") or [])})</div>'
+        f'<div class="sources-row">{chips}</div>'
+    ) if chips else ""
     img = it.get("image_url")
     hero = f'<img class="hero" src="{_esc(img)}" alt="" loading="lazy">' if img else ""
     og_image = f'<meta property="og:image" content="{_esc(img)}">' if img else ""
