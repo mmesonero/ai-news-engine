@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import html
+import json
 import sys
 from datetime import datetime, timedelta, timezone
 
@@ -55,6 +56,19 @@ _THEME_EMOJI = {
     "insight_negocio": "💡",
     "ejemplo_uso": "🧪",
     "noticia_relevante": "🌐",
+}
+
+# Map engine theme keys -> the portfolio index.html theme keys (THEMES array).
+# The custom index uses shorter keys; anything unknown buckets under "otras".
+_INDEX_THEME = {
+    "nuevo_modelo": "nuevo_modelo",
+    "herramienta_nueva": "herramienta",
+    "nueva_funcionalidad": "funcion",
+    "movimiento_empresarial": "negocio",
+    "caso_practico": "caso",
+    "insight_negocio": "insight",
+    "ejemplo_uso": "tutorial",
+    "noticia_relevante": "otras",
 }
 
 # Short labels for the compact landing UI (full labels stay for Telegram/briefing).
@@ -450,6 +464,40 @@ def _render_detail(it: dict) -> str:
 </body></html>"""
 
 
+def _data_payload(items: list[dict]) -> dict:
+    """Real news in the custom portfolio index.html schema (DATA array shape).
+    The index renders this; `detail` is the per-story page Telegram also links to."""
+    now = int(datetime.now(timezone.utc).timestamp())
+    data = []
+    for it in items:
+        ts = it["ts"] or now
+        urls = [
+            {"label": s["name"], "href": s["url"]}
+            for s in (it.get("sources_list") or [])
+            if s.get("url")
+        ]
+        data.append(
+            {
+                "title": it["title"] or "(sin título)",
+                "detail": detail_path(it["url"]),  # n/<slug>.html — click → detail (same as Telegram)
+                "url": it["url"],
+                "theme": _INDEX_THEME.get(it["theme"], "otras"),
+                "score": it["relevance"] or it["score"] or 0,  # cross-source boosted
+                "level": it["tier"] or "media",  # "" → media so it shows by default
+                "sources": it["sources"],
+                "players": it.get("players") or [],
+                "ago": max(0, now - ts),
+                "urls": urls,
+                "sum": it["summary"] or "",
+            }
+        )
+    return {"now": now, "data": data}
+
+
+def _emit_data_js(items: list[dict]) -> str:
+    return "window.__NEWS = " + json.dumps(_data_payload(items), ensure_ascii=False) + ";\n"
+
+
 async def main(out_path: str) -> None:
     import os
 
@@ -459,6 +507,9 @@ async def main(out_path: str) -> None:
     # index
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(_render(items))
+    # data.js — real news consumed by the custom portfolio index.html (window.__NEWS)
+    with open(os.path.join(out_dir, "data.js"), "w", encoding="utf-8") as f:
+        f.write(_emit_data_js(items))
     # per-story detail pages under <out_dir>/n/<slug>.html
     n_dir = os.path.join(out_dir, "n")
     os.makedirs(n_dir, exist_ok=True)
@@ -466,7 +517,7 @@ async def main(out_path: str) -> None:
         slug = story_slug(it["url"])
         with open(os.path.join(n_dir, f"{slug}.html"), "w", encoding="utf-8") as f:
             f.write(_render_detail(it))
-    print(f"wrote {out_path} + {len(items)} detail pages")
+    print(f"wrote {out_path} + data.js + {len(items)} detail pages")
 
 
 if __name__ == "__main__":

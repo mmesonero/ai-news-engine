@@ -78,10 +78,12 @@ jobs:
           fi
           python -m app.export.static_site site/index.html
           git clone --depth 1 "https://x-access-token:${PAGES_TOKEN}@github.com/mmesonero/mmesonero.github.io.git" out
-          # Only update the per-story detail pages (n/); leave index.html managed by the portfolio repo
+          # Engine owns the DATA (data.js) + per-story detail pages (n/).
+          # index.html is managed by the portfolio repo — never overwrite it.
           rm -rf out/ai-news/n
           mkdir -p out/ai-news/n
           cp -r site/n/. out/ai-news/n/
+          cp site/data.js out/ai-news/data.js
           cd out
           git config user.name "ai-news-bot"
           git config user.email "noreply@users.noreply.github.com"
