@@ -128,7 +128,7 @@ def _render(items: list[dict]) -> str:
         summary = f'<p class="sum">{_esc(it["summary"])}</p>' if it["summary"] else ""
         cards.append(
             f'<article class="card" data-theme="{theme}" data-rel="{it["relevance"]}" '
-            f'data-date="{date_attr}" data-ts="{it["ts"]}">'
+            f'data-date="{date_attr}" data-ts="{it["ts"]}" data-tier="{it["tier"]}">'
             f'<div class="meta"><span class="tag">{emoji} {label}</span>'
             f'<span class="nota">{_esc(nota)}</span>{srcb}'
             f'<span class="date">{date}</span></div>'
@@ -177,6 +177,10 @@ def _render(items: list[dict]) -> str:
   select {{ font-family:var(--sans); font-size:13px; font-weight:500; color:var(--text);
            background:var(--bg-elev); border:1px solid var(--border-strong); border-radius:999px;
            padding:8px 14px; cursor:pointer; }}
+  .toggle {{ display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:500;
+            color:var(--text-muted); background:var(--bg-elev); border:1px solid var(--border-strong);
+            border-radius:999px; padding:8px 14px; cursor:pointer; }}
+  .toggle input {{ accent-color:var(--accent-strong); cursor:pointer; margin:0; }}
   .card {{ background:var(--bg-elev); border:1px solid var(--border); border-radius:var(--radius-md);
           padding:16px 18px; margin-bottom:12px; box-shadow:var(--shadow-sm); transition:box-shadow .2s,border-color .2s; }}
   .card:hover {{ box-shadow:var(--shadow-md); border-color:var(--border-strong); }}
@@ -212,6 +216,7 @@ def _render(items: list[dict]) -> str:
     <option value="rel">Orden: relevancia</option>
     <option value="date">Orden: más reciente</option>
   </select>
+  <label class="toggle"><input type="checkbox" id="showlow"> Baja relevancia</label>
 </div>
 <div id="list">
 {body}
@@ -224,14 +229,16 @@ def _render(items: list[dict]) -> str:
   var rangeEl = document.getElementById('range');
   var filterEl = document.getElementById('filter');
   var sortEl = document.getElementById('sort');
+  var lowEl = document.getElementById('showlow');
   var countEl = document.getElementById('count');
   var cards = Array.prototype.slice.call(list.querySelectorAll('.card'));
   function apply() {{
-    var f = filterEl.value, s = sortEl.value;
+    var f = filterEl.value, s = sortEl.value, showLow = lowEl.checked;
     var hours = parseInt(rangeEl.value, 10);
     var cutoff = (Date.now() / 1000) - hours * 3600;
     var vis = cards.filter(function(c) {{
       if (f !== 'all' && c.dataset.theme !== f) return false;
+      if (!showLow && c.dataset.tier === 'baja') return false;
       var ts = parseInt(c.dataset.ts, 10);
       return ts >= cutoff;
     }});
@@ -246,6 +253,7 @@ def _render(items: list[dict]) -> str:
   rangeEl.addEventListener('change', apply);
   filterEl.addEventListener('change', apply);
   sortEl.addEventListener('change', apply);
+  lowEl.addEventListener('change', apply);
   apply();
 }})();
 </script>
