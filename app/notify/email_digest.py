@@ -153,12 +153,17 @@ def _render_email(items: list[dict]) -> str:
 </td></tr></table></body></html>"""
 
 
+_MIN_STORIES = 5  # curated default: the week's top 5...
+
+
 async def _gather() -> list[dict]:
-    # Last 7 days, all RELEVANT stories (exclude low-relevance 'baja' — same as the
-    # web default), ordered by boosted score, capped at email_max_items.
+    # Last 7 days, relevant only (exclude 'baja'), ordered by boosted score.
+    # Curated: the top 5, PLUS any extra high-importance ('alta') story beyond the
+    # top 5 so a busy week isn't cut short. Capped at email_max_items.
     items = await _collect(hours=168, limit=80)
     items = [it for it in items if (it.get("tier") or "media") != "baja"]
-    return items[: settings.email_max_items]
+    extra_alta = [it for it in items[_MIN_STORIES:] if it.get("tier") == "alta"]
+    return (items[:_MIN_STORIES] + extra_alta)[: settings.email_max_items]
 
 
 async def send_weekly_digest() -> int:
