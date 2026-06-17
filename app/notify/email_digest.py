@@ -80,7 +80,7 @@ def _render_email(items: list[dict]) -> str:
     teaser = "".join(
         f'<li style="margin:0 0 8px;"><a href="{detail_url(it["url"])}" '
         f'style="color:{_INK};text-decoration:none;font-weight:600;">{_esc(it["title"])}</a></li>'
-        for it in items[:4]
+        for it in items
     )
 
     # Featured story (top of the week).
