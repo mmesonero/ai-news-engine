@@ -148,7 +148,11 @@ def _render_email(items: list[dict]) -> str:
 
 
 async def _gather() -> list[dict]:
-    return await _collect(hours=168, limit=settings.email_max_items)  # last 7 days
+    # Last 7 days, all RELEVANT stories (exclude low-relevance 'baja' — same as the
+    # web default), ordered by boosted score, capped at email_max_items.
+    items = await _collect(hours=168, limit=80)
+    items = [it for it in items if (it.get("tier") or "media") != "baja"]
+    return items[: settings.email_max_items]
 
 
 async def send_weekly_digest() -> int:
