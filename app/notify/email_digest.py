@@ -18,7 +18,14 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from app.config import settings
-from app.export.static_site import _PLAYER_LOGO, _THEME_EN, _collect, _esc, _site_home
+from app.export.static_site import (
+    _PLAYER_LOGO,
+    _SHORT_LABEL,
+    _THEME_EMOJI,
+    _collect,
+    _esc,
+    _site_home,
+)
 from app.links import detail_url
 from app.logging_config import configure_logging, get_logger
 
@@ -47,8 +54,23 @@ def _email_players(players: list[str] | None) -> str:
     return " &nbsp;·&nbsp; ".join(out)
 
 
+def _clip(s: str | None, n: int = 600) -> str:
+    """Trim a summary WITHOUT cutting mid-sentence: prefer the last sentence end,
+    else the last word, + an ellipsis. Most summaries fit under n and show in full."""
+    s = (s or "").strip()
+    if len(s) <= n:
+        return s
+    cut = s[:n]
+    end = max(cut.rfind(". "), cut.rfind("! "), cut.rfind("? "))
+    if end >= int(n * 0.5):
+        return cut[: end + 1]
+    sp = cut.rfind(" ")
+    return (cut[:sp] if sp > 0 else cut).rstrip(" ,;:") + "…"
+
+
 def _meta_line(it: dict) -> str:
-    emoji, label = _THEME_EN.get(it["theme"], ("🌐", "Other"))
+    emoji = _THEME_EMOJI.get(it["theme"], "🌐")
+    label = _SHORT_LABEL.get(it["theme"], "Otras")
     score = it["relevance"] or it["score"] or 0
     srcs = f' &nbsp;·&nbsp; 📡 {it["sources"]} fuentes' if it["sources"] > 1 else ""
     return (
@@ -87,7 +109,7 @@ def _render_email(items: list[dict]) -> str:
     <tr><td style="padding:0 0 8px;font:12px/1 Arial,sans-serif;color:{_MUTED};">{_meta_line(it)}</td></tr>
     {hero}
     <tr><td style="padding:0 0 8px;"><a href="{detail_url(it["url"])}" style="font:700 19px/1.32 Arial,sans-serif;color:{_INK};text-decoration:none;letter-spacing:-.01em;">{_esc(it["title"])}</a></td></tr>
-    <tr><td style="padding:0 0 10px;font:300 14.5px/1.6 Arial,sans-serif;color:{_MUTED};">{_esc((it["summary"] or "")[:260])}</td></tr>
+    <tr><td style="padding:0 0 10px;font:300 14.5px/1.6 Arial,sans-serif;color:{_MUTED};">{_esc(_clip(it["summary"]))}</td></tr>
     <tr><td style="font:12px/1 Arial,sans-serif;">{_email_players(it.get("players"))}<a href="{detail_url(it["url"])}" style="color:{_GOLD};font-weight:700;text-decoration:none;float:right;">Leer →</a></td></tr>
     <tr><td style="padding:20px 0;"><div style="height:1px;background:#ece8dc;"></div></td></tr>"""
 
