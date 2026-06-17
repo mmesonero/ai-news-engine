@@ -76,13 +76,6 @@ def _render_email(items: list[dict]) -> str:
     addr = f' &nbsp;·&nbsp; {_esc(settings.email_address)}' if settings.email_address else ""
     preheader = f"{len(items)} noticias de IA de la semana — filtradas, deduplicadas y resumidas."
 
-    # This-week teaser — top headlines as quick bullets.
-    # Plain-text index (NOT clickable — the story cards below carry the links).
-    teaser = "".join(
-        f'<li style="margin:0 0 8px;color:{_INK};font-weight:600;">{_esc(it["title"])}</li>'
-        for it in items
-    )
-
     # Uniform cards — EVERY story rendered the same way (image shown if available).
     def _card(it):
         img = it.get("image_url")
@@ -117,9 +110,8 @@ def _render_email(items: list[dict]) -> str:
       <div style="font:800 30px/1 Arial,sans-serif;color:#ECEAE3;letter-spacing:-.02em;">AI <span style="color:#e2ba6b;">News</span></div>
       <div style="font:700 11px/1 Arial,sans-serif;color:#9a938a;letter-spacing:.22em;text-transform:uppercase;margin-top:10px;">Resumen semanal · {len(items)} noticias</div>
     </td></tr>
-    <tr><td style="padding:24px 0 4px;font:700 22px/1.25 Arial,sans-serif;color:{_INK};letter-spacing:-.01em;">La semana en IA, sin ruido 🗞️</td></tr>
-    <tr><td style="padding:0 0 14px;font:300 15px/1.6 Arial,sans-serif;color:{_MUTED};">{len(items)} historias filtradas, deduplicadas y resumidas — lo importante de la semana.</td></tr>
-    <tr><td style="padding:4px 0 18px;"><ul style="margin:0;padding:0 0 0 18px;font:14px/1.5 Arial,sans-serif;color:{_INK};">{teaser}</ul></td></tr>
+    <tr><td style="padding:24px 0 4px;font:700 22px/1.25 Arial,sans-serif;color:{_INK};letter-spacing:-.01em;">Lo importante de la semana en IA 🗞️</td></tr>
+    <tr><td style="padding:0 0 18px;font:300 15px/1.6 Arial,sans-serif;color:{_MUTED};">{len(items)} historias filtradas, deduplicadas y resumidas.</td></tr>
     <tr><td style="padding:0 0 22px;"><div style="height:2px;background:{_GOLD};width:48px;"></div></td></tr>
     {cards}{empty}
     <tr><td style="padding:28px 0 0;text-align:center;">
