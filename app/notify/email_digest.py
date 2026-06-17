@@ -71,7 +71,7 @@ def _render_email(items: list[dict]) -> str:
         '<tr><td style="padding:12px 0 0;text-align:center;">'
         f'<a href="{tg_url}" style="background:{_GOLD};color:#1a1815;font:700 13px/1 Arial,sans-serif;'
         'text-decoration:none;padding:12px 24px;border-radius:999px;display:inline-block;">'
-        '📣 Únete en Telegram →</a></td></tr>'
+        '✈️ Únete en Telegram →</a></td></tr>'
     ) if tg_url else ""
     unsub_to = settings.email_from or settings.email_user or ""
     unsub = f"mailto:{unsub_to}?subject=Baja" if unsub_to else f"{home}/ai-news/"
