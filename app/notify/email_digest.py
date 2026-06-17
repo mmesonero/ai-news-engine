@@ -63,8 +63,6 @@ def _render_email(items: list[dict]) -> str:
     image, then the rest as a clean list. Email-safe (tables + inline styles)."""
     home = _site_home()
     week = datetime.now(timezone.utc).strftime("%d %b %Y")
-    feat = items[0] if items else None
-    rest = items[1:]
 
     tg_url = settings.telegram_channel_url
     tg_cta = (
@@ -85,39 +83,22 @@ def _render_email(items: list[dict]) -> str:
         for it in items
     )
 
-    # Featured story (top of the week).
-    featured = ""
-    if feat:
-        img = feat.get("image_url")
+    # Uniform cards — EVERY story rendered the same way (image shown if available).
+    def _card(it):
+        img = it.get("image_url")
         hero = (
-            f'<tr><td style="padding:0 0 16px;"><img src="{_esc(img)}" width="536" '
-            f'style="display:block;width:100%;max-width:536px;height:auto;border-radius:14px;" alt=""></td></tr>'
+            f'<tr><td style="padding:0 0 12px;"><img src="{_esc(img)}" width="536" '
+            f'style="display:block;width:100%;max-width:536px;height:auto;border-radius:12px;" alt=""></td></tr>'
         ) if img else ""
-        featured = f"""
-    <tr><td style="padding:8px 0 4px;font:700 12px/1 Arial,sans-serif;color:{_SOFT};letter-spacing:.1em;text-transform:uppercase;">★ Destacado</td></tr>
-    <tr><td style="padding:0 0 10px;font:13px/1 Arial,sans-serif;color:{_MUTED};">{_meta_line(feat)}</td></tr>
-    <tr><td style="padding:0 0 14px;"><a href="{detail_url(feat["url"])}" style="font:700 24px/1.3 Arial,sans-serif;color:{_INK};text-decoration:none;letter-spacing:-.01em;">{_esc(feat["title"])}</a></td></tr>
+        return f"""
+    <tr><td style="padding:0 0 8px;font:12px/1 Arial,sans-serif;color:{_MUTED};">{_meta_line(it)}</td></tr>
     {hero}
-    <tr><td style="padding:0 0 6px;font:300 15px/1.65 Arial,sans-serif;color:{_MUTED};">{_esc((feat["summary"] or "")[:360])}</td></tr>
-    <tr><td style="padding:6px 0 0;">{_email_players(feat.get("players"))}</td></tr>
-    <tr><td style="padding:16px 0 0;"><a href="{detail_url(feat["url"])}" style="background:{_GOLD};color:#fff;font:700 13px/1 Arial,sans-serif;text-decoration:none;padding:12px 22px;border-radius:999px;display:inline-block;">Leer en la web →</a></td></tr>
-    <tr><td style="padding:26px 0;"><div style="height:1px;background:#e8e4d8;"></div></td></tr>"""
+    <tr><td style="padding:0 0 8px;"><a href="{detail_url(it["url"])}" style="font:700 19px/1.32 Arial,sans-serif;color:{_INK};text-decoration:none;letter-spacing:-.01em;">{_esc(it["title"])}</a></td></tr>
+    <tr><td style="padding:0 0 10px;font:300 14.5px/1.6 Arial,sans-serif;color:{_MUTED};">{_esc((it["summary"] or "")[:260])}</td></tr>
+    <tr><td style="font:12px/1 Arial,sans-serif;">{_email_players(it.get("players"))}<a href="{detail_url(it["url"])}" style="color:{_GOLD};font-weight:700;text-decoration:none;float:right;">Leer →</a></td></tr>
+    <tr><td style="padding:20px 0;"><div style="height:1px;background:#ece8dc;"></div></td></tr>"""
 
-    # The rest — clean list.
-    rows = []
-    for it in rest:
-        rows.append(f"""
-    <tr><td style="padding:16px 0;border-bottom:1px solid #ece8dc;">
-      <div style="font:12px/1 Arial,sans-serif;color:{_MUTED};margin-bottom:7px;">{_meta_line(it)}</div>
-      <a href="{detail_url(it["url"])}" style="font:700 17px/1.35 Arial,sans-serif;color:{_INK};text-decoration:none;">{_esc(it["title"])}</a>
-      <p style="font:300 14px/1.6 Arial,sans-serif;color:{_MUTED};margin:7px 0 0;">{_esc((it["summary"] or "")[:200])}</p>
-      <div style="margin-top:8px;font:12px/1 Arial,sans-serif;">{_email_players(it.get("players"))}
-        <a href="{detail_url(it["url"])}" style="color:{_GOLD};font-weight:700;text-decoration:none;float:right;">Leer →</a></div>
-    </td></tr>""")
-    rest_block = (
-        f'<tr><td style="padding:8px 0 2px;font:700 13px/1 Arial,sans-serif;color:{_GOLD};letter-spacing:.06em;text-transform:uppercase;">Más esta semana</td></tr>'
-        + "".join(rows)
-    ) if rows else ""
+    cards = "".join(_card(it) for it in items)
 
     empty = "" if items else f'<tr><td style="padding:24px 0;color:{_MUTED};font:14px Arial;">No news this week.</td></tr>'
 
@@ -140,7 +121,7 @@ def _render_email(items: list[dict]) -> str:
     <tr><td style="padding:0 0 14px;font:300 15px/1.6 Arial,sans-serif;color:{_MUTED};">{len(items)} historias filtradas, deduplicadas y resumidas — lo importante de la semana.</td></tr>
     <tr><td style="padding:4px 0 18px;"><ul style="margin:0;padding:0 0 0 18px;font:14px/1.5 Arial,sans-serif;color:{_INK};">{teaser}</ul></td></tr>
     <tr><td style="padding:0 0 22px;"><div style="height:2px;background:{_GOLD};width:48px;"></div></td></tr>
-    {featured}{rest_block}{empty}
+    {cards}{empty}
     <tr><td style="padding:28px 0 0;text-align:center;">
       <a href="{home}/ai-news/" style="background:#0d0d0d;color:#e2ba6b;font:700 13px/1 Arial,sans-serif;text-decoration:none;padding:12px 24px;border-radius:999px;display:inline-block;">Ver todo en la web →</a>
     </td></tr>
