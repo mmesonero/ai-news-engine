@@ -38,8 +38,10 @@ def _email_players(players: list[str] | None) -> str:
     for p in (players or [])[:3]:
         logo = _PLAYER_LOGO.get(p)
         img = (
-            f'<img src="{home}/assets/players/{logo}" width="15" height="15" '
-            f'style="vertical-align:middle;border-radius:3px;margin-right:5px;" alt="">'
+            f'<span style="display:inline-block;background:#1a1a17;border-radius:5px;padding:3px;'
+            f'vertical-align:middle;margin-right:5px;">'
+            f'<img src="{home}/assets/players/{logo}" width="14" height="14" '
+            f'style="display:block;border-radius:2px;" alt=""></span>'
         ) if logo else ""
         out.append(f'<span style="color:{_GOLD};font-weight:700;">{img}{_esc(p)}</span>')
     return " &nbsp;·&nbsp; ".join(out)
@@ -118,10 +120,12 @@ def _render_email(items: list[dict]) -> str:
     empty = "" if items else f'<tr><td style="padding:24px 0;color:{_MUTED};font:14px Arial;">No news this week.</td></tr>'
 
     return f"""<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;background:#fafaf7;padding:0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fafaf7;">
-<tr><td align="center" style="padding:24px 14px;">
-  <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+<body style="margin:0;background:#e9e7e1;padding:0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#e9e7e1;">
+<tr><td align="center" style="padding:26px 14px;">
+  <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:18px;">
+   <tr><td style="padding:26px 26px 30px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
     <tr><td align="right" style="font:12px Arial,sans-serif;color:{_SOFT};padding:0 0 14px;">
       {week} &nbsp;|&nbsp; <a href="{home}/ai-news/" style="color:{_GOLD};text-decoration:none;">Read online →</a>
     </td></tr>
@@ -143,6 +147,8 @@ def _render_email(items: list[dict]) -> str:
       Weekly · sent Sunday morning<br>
       <a href="{unsub}" style="color:{_SOFT};text-decoration:underline;">Unsubscribe</a>
     </td></tr>
+    </table>
+   </td></tr>
   </table>
 </td></tr></table></body></html>"""
 
