@@ -54,6 +54,10 @@ class Settings(BaseSettings):
         default="https://t.me/+ImA4ksuUUbMzMzFk",
         description="Public Telegram channel invite — shown as a CTA in the email footer.",
     )
+    email_address: str = Field(
+        default="",
+        description="Physical/postal address shown in the email footer (RGPD/LSSI for public sends).",
+    )
 
     dedup_threshold: float = Field(default=0.90)
     cluster_threshold: float = Field(default=0.82)
