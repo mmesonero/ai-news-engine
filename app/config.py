@@ -41,6 +41,16 @@ class Settings(BaseSettings):
     telegram_chat_id: str = Field(default="")
     telegram_max_items: int = Field(default=12, description="Max stories per daily briefing message set.")
 
+    # Weekly email digest (optional). SMTP — works with Gmail (smtp.gmail.com + App
+    # Password) or Resend (smtp.resend.com, user="resend", pass=API key). Secrets only.
+    email_host: str = Field(default="")
+    email_port: int = Field(default=587)
+    email_user: str = Field(default="")
+    email_password: str = Field(default="")
+    email_from: str = Field(default="", description="From address; defaults to email_user if blank.")
+    email_to: str = Field(default="", description="Comma-separated recipient list.")
+    email_max_items: int = Field(default=25, description="Max stories in the weekly digest.")
+
     dedup_threshold: float = Field(default=0.90)
     cluster_threshold: float = Field(default=0.82)
     dedup_lookback_days: int = Field(default=14)
