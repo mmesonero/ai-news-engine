@@ -79,9 +79,9 @@ def _render_email(items: list[dict]) -> str:
     preheader = f"{len(items)} noticias de IA de la semana — filtradas, deduplicadas y resumidas."
 
     # This-week teaser — top headlines as quick bullets.
+    # Plain-text index (NOT clickable — the story cards below carry the links).
     teaser = "".join(
-        f'<li style="margin:0 0 8px;"><a href="{detail_url(it["url"])}" '
-        f'style="color:{_INK};text-decoration:none;font-weight:600;">{_esc(it["title"])}</a></li>'
+        f'<li style="margin:0 0 8px;color:{_INK};font-weight:600;">{_esc(it["title"])}</li>'
         for it in items
     )
 
