@@ -153,7 +153,7 @@ def _render_email(items: list[dict]) -> str:
 </td></tr></table></body></html>"""
 
 
-_MIN_STORIES = 5  # curated default: the week's top 5...
+_MIN_STORIES = 10  # curated default: the week's top 10...
 
 
 async def _gather() -> list[dict]:
