@@ -18,46 +18,118 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from app.config import settings
-from app.export.static_site import _THEME_EN, _collect, _esc, _site_home
+from app.export.static_site import _PLAYER_LOGO, _THEME_EN, _collect, _esc, _site_home
 from app.links import detail_url
 from app.logging_config import configure_logging, get_logger
 
 log = get_logger(__name__)
 
 
-def _render_email(items: list[dict]) -> str:
-    """Email-safe HTML (inline styles, light background): warm/gold to match the brand."""
+_GOLD = "#b0904c"
+_INK = "#1a1815"
+_MUTED = "#6b655c"
+_SOFT = "#9a938a"
+
+
+def _email_players(players: list[str] | None) -> str:
+    """Inline player tags (gold) with logos — logos are enhancement (clients may block images)."""
     home = _site_home()
-    rows = []
-    for it in items:
-        emoji, label = _THEME_EN.get(it["theme"], ("🌐", "Other"))
-        score = it["relevance"] or it["score"] or 0
-        title = _esc(it["title"] or "(untitled)")
-        summary = _esc((it["summary"] or "")[:280])
-        url = detail_url(it["url"])
-        srcs = f' · 📡 {it["sources"]} sources' if it["sources"] > 1 else ""
-        rows.append(
-            f'<tr><td style="padding:18px 0;border-bottom:1px solid #e8e4d8;">'
-            f'<div style="font:600 12px/1 Arial,sans-serif;color:#9a938a;letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px;">'
-            f'{emoji} {label} &nbsp;·&nbsp; {score}/100{srcs}</div>'
-            f'<a href="{url}" style="font:600 18px/1.35 Arial,sans-serif;color:#1a1815;text-decoration:none;">{title}</a>'
-            f'<p style="font:300 14px/1.6 Arial,sans-serif;color:#6b655c;margin:8px 0 0;">{summary}</p>'
-            f'<a href="{url}" style="font:600 13px/1 Arial,sans-serif;color:#b0904c;text-decoration:none;display:inline-block;margin-top:8px;">Read on the web →</a>'
-            f"</td></tr>"
-        )
+    out = []
+    for p in (players or [])[:3]:
+        logo = _PLAYER_LOGO.get(p)
+        img = (
+            f'<img src="{home}/assets/players/{logo}" width="15" height="15" '
+            f'style="vertical-align:middle;border-radius:3px;margin-right:5px;" alt="">'
+        ) if logo else ""
+        out.append(f'<span style="color:{_GOLD};font-weight:700;">{img}{_esc(p)}</span>')
+    return " &nbsp;·&nbsp; ".join(out)
+
+
+def _meta_line(it: dict) -> str:
+    emoji, label = _THEME_EN.get(it["theme"], ("🌐", "Other"))
+    score = it["relevance"] or it["score"] or 0
+    srcs = f' &nbsp;·&nbsp; 📡 {it["sources"]} sources' if it["sources"] > 1 else ""
+    return (
+        f'<span style="text-transform:uppercase;letter-spacing:.08em;">{emoji} {label}</span>'
+        f' &nbsp;·&nbsp; <span style="color:{_GOLD};font-weight:700;">{score}/100</span>{srcs}'
+    )
+
+
+def _render_email(items: list[dict]) -> str:
+    """Magazine-style newsletter (Spicy4Tuna structure) in our dark + gold brand:
+    dark wordmark banner, gold title, this-week teaser, a featured story with hero
+    image, then the rest as a clean list. Email-safe (tables + inline styles)."""
+    home = _site_home()
     week = datetime.now(timezone.utc).strftime("%d %b %Y")
-    body = "".join(rows) or '<tr><td style="padding:24px 0;color:#6b655c;font:14px Arial;">No news this week.</td></tr>'
-    return f"""<!DOCTYPE html><html><body style="margin:0;background:#fafaf7;padding:0;">
+    feat = items[0] if items else None
+    rest = items[1:]
+
+    # This-week teaser — top headlines as quick bullets.
+    teaser = "".join(
+        f'<li style="margin:0 0 8px;"><a href="{detail_url(it["url"])}" '
+        f'style="color:{_INK};text-decoration:none;font-weight:600;">{_esc(it["title"])}</a></li>'
+        for it in items[:4]
+    )
+
+    # Featured story (top of the week).
+    featured = ""
+    if feat:
+        img = feat.get("image_url")
+        hero = (
+            f'<tr><td style="padding:0 0 16px;"><img src="{_esc(img)}" width="536" '
+            f'style="display:block;width:100%;max-width:536px;height:auto;border-radius:14px;" alt=""></td></tr>'
+        ) if img else ""
+        featured = f"""
+    <tr><td style="padding:8px 0 4px;font:700 12px/1 Arial,sans-serif;color:{_SOFT};letter-spacing:.1em;text-transform:uppercase;">★ Top story</td></tr>
+    <tr><td style="padding:0 0 10px;font:13px/1 Arial,sans-serif;color:{_MUTED};">{_meta_line(feat)}</td></tr>
+    <tr><td style="padding:0 0 14px;"><a href="{detail_url(feat["url"])}" style="font:700 24px/1.3 Arial,sans-serif;color:{_INK};text-decoration:none;letter-spacing:-.01em;">{_esc(feat["title"])}</a></td></tr>
+    {hero}
+    <tr><td style="padding:0 0 6px;font:300 15px/1.65 Arial,sans-serif;color:{_MUTED};">{_esc((feat["summary"] or "")[:360])}</td></tr>
+    <tr><td style="padding:6px 0 0;">{_email_players(feat.get("players"))}</td></tr>
+    <tr><td style="padding:16px 0 0;"><a href="{detail_url(feat["url"])}" style="background:{_GOLD};color:#fff;font:700 13px/1 Arial,sans-serif;text-decoration:none;padding:12px 22px;border-radius:999px;display:inline-block;">Read on the web →</a></td></tr>
+    <tr><td style="padding:26px 0;"><div style="height:1px;background:#e8e4d8;"></div></td></tr>"""
+
+    # The rest — clean list.
+    rows = []
+    for it in rest:
+        rows.append(f"""
+    <tr><td style="padding:16px 0;border-bottom:1px solid #ece8dc;">
+      <div style="font:12px/1 Arial,sans-serif;color:{_MUTED};margin-bottom:7px;">{_meta_line(it)}</div>
+      <a href="{detail_url(it["url"])}" style="font:700 17px/1.35 Arial,sans-serif;color:{_INK};text-decoration:none;">{_esc(it["title"])}</a>
+      <p style="font:300 14px/1.6 Arial,sans-serif;color:{_MUTED};margin:7px 0 0;">{_esc((it["summary"] or "")[:200])}</p>
+      <div style="margin-top:8px;font:12px/1 Arial,sans-serif;">{_email_players(it.get("players"))}
+        <a href="{detail_url(it["url"])}" style="color:{_GOLD};font-weight:700;text-decoration:none;float:right;">Read →</a></div>
+    </td></tr>""")
+    rest_block = (
+        f'<tr><td style="padding:8px 0 2px;font:700 13px/1 Arial,sans-serif;color:{_GOLD};letter-spacing:.06em;text-transform:uppercase;">More this week</td></tr>'
+        + "".join(rows)
+    ) if rows else ""
+
+    empty = "" if items else f'<tr><td style="padding:24px 0;color:{_MUTED};font:14px Arial;">No news this week.</td></tr>'
+
+    return f"""<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;background:#fafaf7;padding:0;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fafaf7;">
-<tr><td align="center" style="padding:28px 16px;">
+<tr><td align="center" style="padding:24px 14px;">
   <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
-    <tr><td style="padding:0 0 8px;">
-      <div style="font:700 26px/1 Arial,sans-serif;color:#1a1815;letter-spacing:-.02em;">AI <span style="color:#b0904c;">News</span></div>
-      <div style="font:14px Arial,sans-serif;color:#6b655c;margin-top:6px;">Weekly digest · {len(items)} stories · {week}</div>
+    <tr><td align="right" style="font:12px Arial,sans-serif;color:{_SOFT};padding:0 0 14px;">
+      {week} &nbsp;|&nbsp; <a href="{home}/ai-news/" style="color:{_GOLD};text-decoration:none;">Read online →</a>
     </td></tr>
-    <tr><td><table role="presentation" width="100%" cellpadding="0" cellspacing="0">{body}</table></td></tr>
-    <tr><td style="padding:22px 0 0;font:12px Arial,sans-serif;color:#9a938a;">
-      <a href="{home}/ai-news/" style="color:#b0904c;text-decoration:none;">See all on the web →</a> · auto-curated &amp; deduplicated
+    <tr><td style="background:#0d0d0d;border-radius:16px;padding:30px 24px;text-align:center;">
+      <div style="font:800 30px/1 Arial,sans-serif;color:#ECEAE3;letter-spacing:-.02em;">AI <span style="color:#e2ba6b;">News</span></div>
+      <div style="font:700 11px/1 Arial,sans-serif;color:#9a938a;letter-spacing:.22em;text-transform:uppercase;margin-top:10px;">Weekly digest · {len(items)} stories</div>
+    </td></tr>
+    <tr><td style="padding:24px 0 4px;font:700 22px/1.25 Arial,sans-serif;color:{_INK};letter-spacing:-.01em;">La semana en IA, sin ruido 🗞️</td></tr>
+    <tr><td style="padding:0 0 14px;font:300 15px/1.6 Arial,sans-serif;color:{_MUTED};">{len(items)} historias filtradas, deduplicadas y resumidas — lo importante de la semana.</td></tr>
+    <tr><td style="padding:4px 0 18px;"><ul style="margin:0;padding:0 0 0 18px;font:14px/1.5 Arial,sans-serif;color:{_INK};">{teaser}</ul></td></tr>
+    <tr><td style="padding:0 0 22px;"><div style="height:2px;background:{_GOLD};width:48px;"></div></td></tr>
+    {featured}{rest_block}{empty}
+    <tr><td style="padding:28px 0 0;text-align:center;">
+      <a href="{home}/ai-news/" style="background:#0d0d0d;color:#e2ba6b;font:700 13px/1 Arial,sans-serif;text-decoration:none;padding:12px 24px;border-radius:999px;display:inline-block;">See all on the web →</a>
+    </td></tr>
+    <tr><td style="padding:20px 0 0;text-align:center;font:12px/1.6 Arial,sans-serif;color:{_SOFT};">
+      Auto-curated &amp; deduplicated with AI · <a href="{home}/" style="color:{_GOLD};text-decoration:none;">Manuel Mesonero</a><br>
+      Weekly · sent Sunday morning
     </td></tr>
   </table>
 </td></tr></table></body></html>"""
