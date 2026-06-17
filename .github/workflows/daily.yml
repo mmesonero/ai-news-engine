@@ -16,10 +16,19 @@ name: Daily AI news pipeline
 
 on:
   schedule:
-    # GitHub cron is UTC and does NOT follow DST. Times below target Spain SUMMER
-    # (CEST, UTC+2). In winter (CET, UTC+1) they fire one hour earlier local.
-    - cron: "0 4 * * *"    # 04:00 UTC = 06:00 Spain (summer) — morning briefing
-    - cron: "0 15 * * *"   # 15:00 UTC = 17:00 Spain (summer) — afternoon briefing
+    # GitHub cron is UTC, no DST, and BEST-EFFORT (delayed under load — worst at :00
+    # and during US-daytime peak). Mitigation: odd minutes (dodge the top-of-hour
+    # stampede), schedule EARLY (cron never fires early, only late), and TWO shots per
+    # window — a primary + a backup. Safe to double-fire: the pipeline is idempotent and
+    # only sends NOT-yet-notified stories, so the backup shot pings nothing if the
+    # primary already ran. Times target Spain SUMMER (UTC+2); winter = 1h earlier local.
+    #
+    # Morning briefing (~06:00 ES) — ESSENTIAL. Early UTC = low Actions load → punctual.
+    - cron: "47 3 * * *"    # 03:47 UTC ≈ 05:47 ES — primary
+    - cron: "17 4 * * *"    # 04:17 UTC ≈ 06:17 ES — backup
+    # Afternoon briefing (~17:00 ES) — 15:00 UTC is US-daytime peak, expect some drift.
+    - cron: "37 14 * * *"   # 14:37 UTC ≈ 16:37 ES — primary
+    - cron: "23 15 * * *"   # 15:23 UTC ≈ 17:23 ES — backup
   workflow_dispatch: {}     # allow manual runs from the Actions tab
 
 concurrency:

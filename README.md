@@ -18,7 +18,7 @@ Everything runs on free, managed infrastructure. No server, no laptop, no Docker
 | Delivery — push | **Telegram** (one message per story, to a private channel) |
 | Delivery — web | **GitHub Pages** static page at `mmesonero.github.io/ai-news` |
 
-The pipeline fires at **04:00 and 15:00 UTC** (06:00 / 17:00 Spain in summer). Each run:
+The pipeline targets **~06:00 and ~17:00 Spain** (morning + afternoon). GitHub cron is best-effort, so each window has a primary + backup shot at odd minutes (the run is idempotent and only sends not-yet-notified stories, so backups don't spam). Each run:
 ingests → embeds → dedups/clusters → LLM-merges borderline stories → classifies → enriches (Spanish) → tags players → fetches images → sends/edits Telegram → publishes the web data → prunes old rows.
 
 > The local Docker stack was removed — the project is cloud-native. The database on Neon is the only backup that matters; everything has been migrated there.

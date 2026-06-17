@@ -255,7 +255,7 @@ Published to `mmesonero.github.io/ai-news`. **Paginated archive** to stay fast w
 
 ## 12. Operations
 
-- **Scheduler**: GitHub Actions cron, `04:00` + `15:00` UTC. Best-effort timing (GitHub may delay); no DST. Trigger manually via the Actions tab or `gh workflow run daily.yml`.
+- **Scheduler**: GitHub Actions cron targeting ~06:00 + ~17:00 ES. Best-effort (GitHub delays under load, worst at :00 / US-daytime peak), no DST → each window has a primary + backup at odd minutes (`03:47`/`04:17` and `14:37`/`15:23` UTC); idempotent + not-yet-notified-only sending means backups never duplicate. Trigger manually via the Actions tab or `gh workflow run daily.yml`.
 - **Secrets**: live only in GitHub Actions (encrypted, not readable back). Migrations against the cloud DB run only inside Actions. See `SECURITY.md`.
 - **Logs / metrics**: structlog JSON, `run_id` per run; per-stage counters (ingested, clusters, merges, enriched, telegram_sent/edited, images_found, members_pruned) logged at run end.
 - **Idempotency**: re-running a day is safe.
