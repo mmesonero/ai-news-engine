@@ -64,6 +64,16 @@ def _render_email(items: list[dict]) -> str:
     feat = items[0] if items else None
     rest = items[1:]
 
+    tg_url = settings.telegram_channel_url
+    tg_cta = (
+        '<tr><td style="padding:12px 0 0;text-align:center;">'
+        f'<a href="{tg_url}" style="background:#2AABEE;color:#fff;font:700 13px/1 Arial,sans-serif;'
+        'text-decoration:none;padding:12px 24px;border-radius:999px;display:inline-block;">'
+        '📣 Get it live on Telegram →</a></td></tr>'
+    ) if tg_url else ""
+    unsub_to = settings.email_from or settings.email_user or ""
+    unsub = f"mailto:{unsub_to}?subject=Unsubscribe" if unsub_to else f"{home}/ai-news/"
+
     # This-week teaser — top headlines as quick bullets.
     teaser = "".join(
         f'<li style="margin:0 0 8px;"><a href="{detail_url(it["url"])}" '
@@ -127,9 +137,11 @@ def _render_email(items: list[dict]) -> str:
     <tr><td style="padding:28px 0 0;text-align:center;">
       <a href="{home}/ai-news/" style="background:#0d0d0d;color:#e2ba6b;font:700 13px/1 Arial,sans-serif;text-decoration:none;padding:12px 24px;border-radius:999px;display:inline-block;">See all on the web →</a>
     </td></tr>
-    <tr><td style="padding:20px 0 0;text-align:center;font:12px/1.6 Arial,sans-serif;color:{_SOFT};">
+    {tg_cta}
+    <tr><td style="padding:22px 0 0;text-align:center;font:12px/1.6 Arial,sans-serif;color:{_SOFT};">
       Auto-curated &amp; deduplicated with AI · <a href="{home}/" style="color:{_GOLD};text-decoration:none;">Manuel Mesonero</a><br>
-      Weekly · sent Sunday morning
+      Weekly · sent Sunday morning<br>
+      <a href="{unsub}" style="color:{_SOFT};text-decoration:underline;">Unsubscribe</a>
     </td></tr>
   </table>
 </td></tr></table></body></html>"""
@@ -149,10 +161,13 @@ async def send_weekly_digest() -> int:
         return 0
 
     recipients = [r.strip() for r in settings.email_to.split(",") if r.strip()]
+    sender = settings.email_from or settings.email_user
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"AI News — weekly digest ({len(items)} stories)"
-    msg["From"] = settings.email_from or settings.email_user
+    msg["From"] = sender
     msg["To"] = ", ".join(recipients)
+    # Standard one-click/list unsubscribe (mailto) — improves deliverability.
+    msg["List-Unsubscribe"] = f"<mailto:{sender}?subject=Unsubscribe>"
     msg.attach(MIMEText("Open in an HTML-capable client.", "plain"))
     msg.attach(MIMEText(_render_email(items), "html"))
 
