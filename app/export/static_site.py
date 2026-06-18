@@ -72,14 +72,14 @@ _INDEX_THEME = {
 
 # Short labels for the compact landing UI (full labels stay for Telegram/briefing).
 _SHORT_LABEL = {
-    "nuevo_modelo": "Modelos",
-    "herramienta_nueva": "Herramientas",
-    "nueva_funcionalidad": "Funciones",
-    "movimiento_empresarial": "Negocio",
-    "caso_practico": "Casos",
+    "nuevo_modelo": "Models",
+    "herramienta_nueva": "Tools",
+    "nueva_funcionalidad": "Features",
+    "movimiento_empresarial": "Business",
+    "caso_practico": "Cases",
     "insight_negocio": "Insights",
-    "ejemplo_uso": "Tutoriales",
-    "noticia_relevante": "Otras",
+    "ejemplo_uso": "Tutorials",
+    "noticia_relevante": "Other",
 }
 
 
@@ -385,7 +385,7 @@ def _render(items: list[dict]) -> str:
     total = len(items)
     # themes present, in canonical order, for the filter dropdown
     present = [t for t in THEME_ORDER if any(it["theme"] == t for it in items)]
-    opts = '<option value="all">Todos los temas</option>' + "".join(
+    opts = '<option value="all">All themes</option>' + "".join(
         f'<option value="{t}">{_THEME_EMOJI.get(t, "🌐")} {_esc(_SHORT_LABEL.get(t, t))}</option>'
         for t in present
     )
@@ -396,11 +396,11 @@ def _render(items: list[dict]) -> str:
             pcount[p] = pcount.get(p, 0) + 1
     players_present = sorted(pcount, key=lambda p: -pcount[p])
     no_player = sum(1 for it in items if not (it.get("players") or []))
-    popts = '<option value="all">Todos los players</option>' + "".join(
+    popts = '<option value="all">All players</option>' + "".join(
         f'<option value="{_esc(p)}">{_esc(p)} ({pcount[p]})</option>' for p in players_present
     )
     if no_player:
-        popts += f'<option value="__none__">Otros ({no_player})</option>'
+        popts += f'<option value="__none__">Other ({no_player})</option>'
 
     cards = []
     for it in items:
@@ -411,7 +411,7 @@ def _render(items: list[dict]) -> str:
         srcb = f'<span class="src">📡 {it["sources"]}</span>' if it["sources"] > 1 else ""
         date = it["published_at"].strftime("%d/%m") if it["published_at"] else ""
         date_attr = it["published_at"].strftime("%Y%m%d") if it["published_at"] else "0"
-        title = _esc(it["title"] or "(sin título)")
+        title = _esc(it["title"] or "(untitled)")
         # Link to OUR detail subpage (not the source). Source link lives inside it.
         link = f'<a href="{_esc(detail_path(it["url"]))}">{title}</a>'
         summary = f'<p class="sum">{_esc(it["summary"])}</p>' if it["summary"] else ""
@@ -424,46 +424,46 @@ def _render(items: list[dict]) -> str:
             f'<span class="date">{date}</span></div>'
             f'<div class="title">{link}</div>{summary}</article>'
         )
-    body = "\n".join(cards) or '<p class="empty">Sin noticias en los últimos 7 días.</p>'
+    body = "\n".join(cards) or '<p class="empty">No news in the last 7 days.</p>'
     return f"""<!DOCTYPE html>
-<html lang="es"><head>
+<html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI News — Manuel Mesonero</title>
-<meta name="description" content="Briefing diario de noticias de IA, deduplicado y clasificado automáticamente.">
+<meta name="description" content="Daily AI news briefing, automatically deduplicated and classified.">
 {_FONT}
 <style>{_STYLE}</style></head><body>
 {_nav()}
 <div class="wrap">
 <header>
   <h1>AI <span class="accent">News</span></h1>
-  <div class="sub"><span id="count">{total}</span> noticias · actualizado {updated}</div>
+  <div class="sub"><span id="count">{total}</span> stories · updated {updated}</div>
 </header>
 <div class="controls">
   <div class="ctrl-row">
-    <select id="range" aria-label="Rango temporal">
+    <select id="range" aria-label="Time range">
       <option value="24">24h</option>
       <option value="72">72h</option>
-      <option value="168">Semana</option>
-      <option value="720" selected>Mes</option>
+      <option value="168">Week</option>
+      <option value="720" selected>Month</option>
     </select>
-    <select id="sort" aria-label="Orden">
-      <option value="rel">↓ Relevancia</option>
-      <option value="date">↓ Reciente</option>
+    <select id="sort" aria-label="Sort">
+      <option value="rel">↓ Relevance</option>
+      <option value="date">↓ Recent</option>
     </select>
     <label class="switch">
       <input type="checkbox" id="showlow"><span class="track"></span>
-      <span>Baja relevancia</span>
+      <span>Low relevance</span>
     </label>
   </div>
   <div class="ctrl-row">
-    <span class="ctrl-label">Tema</span><select id="filter">{opts}</select>
+    <span class="ctrl-label">Theme</span><select id="filter">{opts}</select>
     <span class="ctrl-label">Players</span><select id="player">{popts}</select>
   </div>
 </div>
 <div id="list">
 {body}
 </div>
-<footer>Recopilado y clasificado automáticamente · dedup semántico + IA · <a href="{_site_home()}/">← mmesonero</a></footer>
+<footer>Auto-curated &amp; classified · semantic dedup + AI · <a href="{_site_home()}/">← mmesonero</a></footer>
 </div>
 <script>
 (function() {{
