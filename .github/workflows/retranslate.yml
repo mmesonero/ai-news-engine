@@ -1,0 +1,57 @@
+name: Re-translate back-catalogue to English
+
+# One-off / on-demand: re-enrich every existing story in English (the enrichment
+# prompt now outputs English), then republish the web data. No ingest, no Telegram.
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: daily-pipeline   # share the pipeline lock so it can't clash with daily.yml
+  cancel-in-progress: false
+
+jobs:
+  retranslate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SYNC_DATABASE_URL: ${{ secrets.SYNC_DATABASE_URL }}
+      OPENAI_LLM_MODEL: gpt-4o-mini
+      APP_ENV: prod
+      LOG_LEVEL: INFO
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      - name: Run DB migrations
+        run: alembic upgrade head
+      - name: Re-translate all stories to English
+        run: python -m app.scripts.retranslate
+
+      - name: Publish refreshed (English) web data to portfolio
+        env:
+          PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}
+        run: |
+          if [ -z "$PAGES_TOKEN" ]; then
+            echo "PAGES_TOKEN not set — skipping static page publish."
+            exit 0
+          fi
+          python -m app.export.static_site site/index.html
+          git clone --depth 1 "https://x-access-token:${PAGES_TOKEN}@github.com/mmesonero/mmesonero.github.io.git" out
+          rm -rf out/ai-news/n
+          mkdir -p out/ai-news/n
+          cp -r site/n/. out/ai-news/n/
+          cp site/data.js out/ai-news/data.js
+          cp site/data-archive.js out/ai-news/data-archive.js
+          cd out
+          git config user.name "ai-news-bot"
+          git config user.email "noreply@users.noreply.github.com"
+          git add ai-news
+          git commit -m "Re-translate AI news to English" || { echo "no changes"; exit 0; }
+          git push

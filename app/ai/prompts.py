@@ -152,12 +152,15 @@ You compress articles into structured intelligence: summary, scores, and concret
 Output STRICT JSON, no prose."""
 
 ENRICH_V1_USER = """Analyse this article and return JSON with this exact shape.
-Write `title_es`, `cleaned_summary` and all `insights` text in SPANISH (español de España),
-natural and concise. Keep `key_topics` lowercase (English ok), and scores/enums exactly as specified.
+Write `title_es`, `cleaned_summary` and all `insights` text in ENGLISH — natural and concise,
+absolutely NO Spanish. The `cleaned_summary` (3-5 sentences) must state what happened AND why it
+matters (the concrete implication for the reader), not just describe. Hedge extraordinary claims
+("could", "reportedly") unless well-sourced. Keep `key_topics` lowercase; scores/enums exactly as specified.
+(`title_es` is just the stored display title — its content must be English.)
 
 {{
-  "title_es": "<titular en español, claro y descriptivo, una línea>",
-  "cleaned_summary": "<resumen ejecutivo en español, 3-5 frases>",
+  "title_es": "<clear, descriptive English headline, one line>",
+  "cleaned_summary": "<English executive summary, 3-5 sentences: what happened + why it matters>",
   "key_topics": ["<lowercase>", ...],
   "content_type": "news" | "product_launch" | "research" | "pr_announcement" | "opinion" | "retrospective",
   "scores": {{
