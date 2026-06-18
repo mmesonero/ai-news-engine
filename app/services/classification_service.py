@@ -49,9 +49,9 @@ class ClassificationService:
             category = (payload.get("category") or "medium").lower()
             theme = (payload.get("theme") or "").lower() or None
             importance_tier = (payload.get("importance_tier") or "").lower() or None
-            if theme == "irrelevante":
+            if theme == "irrelevant":
                 category = "noise"
-            if importance_tier not in {"alta", "media", "baja"}:
+            if importance_tier not in {"high", "medium", "low"}:
                 importance_tier = None
             is_noise = category == "noise"
             processed = ProcessedContent(

@@ -157,8 +157,8 @@ async def _gather() -> list[dict]:
     # Curated: the top _MIN_STORIES, PLUS any extra high-importance ('alta') story
     # beyond that so a busy week isn't cut short. Capped at email_max_items.
     items = await _collect(hours=168, limit=80)
-    items = [it for it in items if (it.get("tier") or "media") != "baja"]
-    extra_alta = [it for it in items[_MIN_STORIES:] if it.get("tier") == "alta"]
+    items = [it for it in items if (it.get("tier") or "medium") != "low"]
+    extra_alta = [it for it in items[_MIN_STORIES:] if it.get("tier") == "high"]
     return (items[:_MIN_STORIES] + extra_alta)[: settings.email_max_items]
 
 

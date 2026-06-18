@@ -22,28 +22,28 @@ router = APIRouter()
 
 # Display order matches Executive Lab's 3-section briefing structure.
 THEME_ORDER: list[str] = [
-    "nuevo_modelo",
-    "herramienta_nueva",
-    "nueva_funcionalidad",
-    "movimiento_empresarial",
-    "caso_practico",
-    "insight_negocio",
-    "ejemplo_uso",
-    "noticia_relevante",
+    "models",
+    "tools",
+    "features",
+    "business",
+    "cases",
+    "insights",
+    "tutorials",
+    "other",
 ]
 
 THEME_LABEL: dict[str, str] = {
-    "nuevo_modelo": "Nuevos modelos",
-    "herramienta_nueva": "Herramientas nuevas",
-    "nueva_funcionalidad": "Nuevas funcionalidades",
-    "movimiento_empresarial": "Movimientos empresariales",
-    "caso_practico": "Casos prácticos",
-    "insight_negocio": "Insights de negocio",
-    "ejemplo_uso": "Ejemplos de uso",
-    "noticia_relevante": "Otras noticias relevantes",
+    "models": "New models",
+    "tools": "New tools",
+    "features": "New features",
+    "business": "Business moves",
+    "cases": "Use cases",
+    "insights": "Business insights",
+    "tutorials": "Tutorials",
+    "other": "Other relevant news",
 }
 
-TIER_RANK = {"alta": 3, "media": 2, "baja": 1}
+TIER_RANK = {"high": 3, "medium": 2, "low": 1}
 
 
 class ThemeBlock(BaseModel):
@@ -64,17 +64,17 @@ async def briefing_daily(
     session: AsyncSession = Depends(db_session),
     hours: int = Query(default=24, ge=1, le=168),
     per_theme: int = Query(default=8, ge=1, le=30),
-    min_tier: str = Query(default="baja", pattern="^(alta|media|baja)$"),
+    min_tier: str = Query(default="low", pattern="^(high|medium|low)$"),
 ) -> DailyBriefing:
-    """Last-N-hours non-noise representatives, grouped by theme, ordered alta→baja."""
+    """Last-N-hours non-noise representatives, grouped by theme, ordered high→low."""
     now = datetime.now(timezone.utc)
     since = now - timedelta(hours=hours)
 
     min_rank = TIER_RANK[min_tier]
     tier_rank = case(
-        (ProcessedContent.importance_tier == "alta", 3),
-        (ProcessedContent.importance_tier == "media", 2),
-        (ProcessedContent.importance_tier == "baja", 1),
+        (ProcessedContent.importance_tier == "high", 3),
+        (ProcessedContent.importance_tier == "medium", 2),
+        (ProcessedContent.importance_tier == "low", 1),
         else_=0,
     ).label("tier_rank")
 
@@ -114,7 +114,7 @@ async def briefing_daily(
         .outerjoin(stats_subq, stats_subq.c.cid == ClusterItem.cluster_id)
         .where(ProcessedContent.is_noise.is_(False))
         .where(ProcessedContent.theme.isnot(None))
-        .where(ProcessedContent.theme != "irrelevante")
+        .where(ProcessedContent.theme != "irrelevant")
         .where(
             or_(
                 ClusterItem.cluster_id.is_(None),
@@ -139,7 +139,7 @@ async def briefing_daily(
     by_theme: dict[str, list[NewsItem]] = {t: [] for t in THEME_ORDER}
     total = 0
     for raw, proc, cluster_id, _rank, member_count, source_count, _boosted in res.all():
-        theme = proc.theme or "noticia_relevante"
+        theme = proc.theme or "other"
         if theme not in by_theme:
             by_theme[theme] = []
         if len(by_theme[theme]) >= per_theme:

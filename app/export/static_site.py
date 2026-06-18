@@ -47,52 +47,52 @@ from app.models.raw_content import RawContent
 from app.models.source import Source
 
 _THEME_EMOJI = {
-    "nuevo_modelo": "🧠",
-    "herramienta_nueva": "🛠️",
-    "nueva_funcionalidad": "✨",
-    "movimiento_empresarial": "💼",
-    "caso_practico": "📈",
-    "insight_negocio": "💡",
-    "ejemplo_uso": "🧪",
-    "noticia_relevante": "🌐",
+    "models": "🧠",
+    "tools": "🛠️",
+    "features": "✨",
+    "business": "💼",
+    "cases": "📈",
+    "insights": "💡",
+    "tutorials": "🧪",
+    "other": "🌐",
 }
 
 # Map engine theme keys -> the portfolio index.html theme keys (THEMES array).
-# The custom index uses shorter keys; anything unknown buckets under "otras".
+# The custom index uses shorter keys; anything unknown buckets under "other".
 _INDEX_THEME = {
-    "nuevo_modelo": "nuevo_modelo",
-    "herramienta_nueva": "herramienta",
-    "nueva_funcionalidad": "funcion",
-    "movimiento_empresarial": "negocio",
-    "caso_practico": "caso",
-    "insight_negocio": "insight",
-    "ejemplo_uso": "tutorial",
-    "noticia_relevante": "otras",
+    "models": "models",
+    "tools": "tools",
+    "features": "features",
+    "business": "business",
+    "cases": "cases",
+    "insights": "insights",
+    "tutorials": "tutorials",
+    "other": "other",
 }
 
 # Short labels for the compact landing UI (full labels stay for Telegram/briefing).
 _SHORT_LABEL = {
-    "nuevo_modelo": "Models",
-    "herramienta_nueva": "Tools",
-    "nueva_funcionalidad": "Features",
-    "movimiento_empresarial": "Business",
-    "caso_practico": "Cases",
-    "insight_negocio": "Insights",
-    "ejemplo_uso": "Tutorials",
-    "noticia_relevante": "Other",
+    "models": "Models",
+    "tools": "Tools",
+    "features": "Features",
+    "business": "Business",
+    "cases": "Cases",
+    "insights": "Insights",
+    "tutorials": "Tutorials",
+    "other": "Other",
 }
 
 
 # English theme label + emoji (matches the index THEMES), keyed by engine theme.
 _THEME_EN = {
-    "nuevo_modelo": ("🧠", "Models"),
-    "herramienta_nueva": ("🛠️", "Tools"),
-    "nueva_funcionalidad": ("✨", "Features"),
-    "movimiento_empresarial": ("💼", "Business"),
-    "caso_practico": ("📈", "Cases"),
-    "insight_negocio": ("💡", "Insights"),
-    "ejemplo_uso": ("🧪", "Tutorials"),
-    "noticia_relevante": ("🌐", "Other"),
+    "models": ("🧠", "Models"),
+    "tools": ("🛠️", "Tools"),
+    "features": ("✨", "Features"),
+    "business": ("💼", "Business"),
+    "cases": ("📈", "Cases"),
+    "insights": ("💡", "Insights"),
+    "tutorials": ("🧪", "Tutorials"),
+    "other": ("🌐", "Other"),
 }
 
 # Player → logo filename (mirrors the index PLAYER_LOGO) + brand color for the dot fallback.
@@ -274,9 +274,9 @@ _STYLE = """
              background:conic-gradient(var(--ring) calc(var(--v)*1%), var(--track) 0); --track:var(--border); --ring:var(--accent); }
   .s-score::before { content:''; position:absolute; inset:3px; border-radius:50%; background:var(--bg); }
   .s-score b { position:relative; font-size:12px; font-weight:600; color:var(--text); letter-spacing:-0.02em; }
-  .s-tags[data-level="alta"] .s-score { --ring:var(--accent-strong); }
-  .s-tags[data-level="media"] .s-score { --ring:var(--accent); }
-  .s-tags[data-level="baja"] .s-score { --ring:var(--text-soft); }
+  .s-tags[data-level="high"] .s-score { --ring:var(--accent-strong); }
+  .s-tags[data-level="medium"] .s-score { --ring:var(--accent); }
+  .s-tags[data-level="low"] .s-score { --ring:var(--text-soft); }
   .s-foot { display:flex; align-items:center; gap:10px; margin:16px 0 0; font-size:12.5px; color:var(--text-soft); flex-wrap:wrap; }
   .s-foot .dot { width:2.5px; height:2.5px; border-radius:50%; background:var(--text-soft); opacity:.7; }
   .s-foot .s-src { display:inline-flex; align-items:center; gap:6px; }
@@ -289,9 +289,9 @@ async def _collect(hours: int, limit: int) -> list[dict]:
     since = now - timedelta(hours=hours)
 
     tier_rank = case(
-        (ProcessedContent.importance_tier == "alta", 3),
-        (ProcessedContent.importance_tier == "media", 2),
-        (ProcessedContent.importance_tier == "baja", 1),
+        (ProcessedContent.importance_tier == "high", 3),
+        (ProcessedContent.importance_tier == "medium", 2),
+        (ProcessedContent.importance_tier == "low", 1),
         else_=0,
     ).label("tier_rank")
     stats_subq = (
@@ -315,7 +315,7 @@ async def _collect(hours: int, limit: int) -> list[dict]:
         # Show ALL non-noise stories (even those without a theme/tier from the old
         # classifier — they bucket under "Otras" and still appear).
         .where(ProcessedContent.is_noise.is_(False))
-        .where(or_(ProcessedContent.theme.is_(None), ProcessedContent.theme != "irrelevante"))
+        .where(or_(ProcessedContent.theme.is_(None), ProcessedContent.theme != "irrelevant"))
         .where(or_(ClusterItem.cluster_id.is_(None), RawContent.id.in_(rep_subq)))
         .where(
             or_(
@@ -362,7 +362,7 @@ async def _collect(hours: int, limit: int) -> list[dict]:
 
             items.append(
                 {
-                    "theme": proc.theme or "noticia_relevante",
+                    "theme": proc.theme or "other",
                     "title": proc.title_es or raw.title,
                     "url": raw.url,
                     "score": proc.importance_score,
@@ -509,7 +509,7 @@ def _render(items: list[dict]) -> str:
 def _render_detail(it: dict) -> str:
     theme = it["theme"]
     emoji, label = _THEME_EN.get(theme, ("🌐", "Other"))
-    tier = it["tier"] or "media"
+    tier = it["tier"] or "medium"
     score = it["relevance"] or it["score"] or 0
     date = it["published_at"].strftime("%d %b %Y") if it["published_at"] else ""
     title = _esc(it["title"] or "(untitled)")
@@ -570,9 +570,9 @@ def _data_payload(items: list[dict], now: int) -> dict:
                 "title": it["title"] or "(untitled)",
                 "detail": detail_path(it["url"]),  # n/<slug>.html — click → detail (same as Telegram)
                 "url": it["url"],
-                "theme": _INDEX_THEME.get(it["theme"], "otras"),
+                "theme": _INDEX_THEME.get(it["theme"], "other"),
                 "score": it["relevance"] or it["score"] or 0,  # cross-source boosted
-                "level": it["tier"] or "media",  # "" → media so it shows by default
+                "level": it["tier"] or "medium",  # "" → media so it shows by default
                 "sources": it["sources"],
                 "players": it.get("players") or [],
                 "ago": max(0, now - ts),

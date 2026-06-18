@@ -76,7 +76,7 @@ async def backfill_images(session: AsyncSession, limit: int = 40) -> int:
         .where(RawContent.image_url.is_(None))
         .where(ProcessedContent.is_noise.is_(False))
         .where(ProcessedContent.theme.isnot(None))
-        .where(ProcessedContent.theme != "irrelevante")
+        .where(ProcessedContent.theme != "irrelevant")
         .limit(limit)
     )
     raws = list(rows.scalars())

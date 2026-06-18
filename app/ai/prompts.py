@@ -75,54 +75,54 @@ Return JSON with this exact shape:
 {{
   "category": "valuable" | "medium" | "noise",
   "topic_match": "ai" | "startup_vc" | "corporate" | "hard_tech" | "off_topic",
-  "theme": "nuevo_modelo" | "herramienta_nueva" | "nueva_funcionalidad" | "movimiento_empresarial" | "caso_practico" | "insight_negocio" | "ejemplo_uso" | "noticia_relevante" | "irrelevante",
-  "importance_tier": "alta" | "media" | "baja",
+  "theme": "models" | "tools" | "features" | "business" | "cases" | "insights" | "tutorials" | "other" | "irrelevant",
+  "importance_tier": "high" | "medium" | "low",
   "comment_worthy": <bool>,
   "reasoning": "<one sentence>",
   "tags": ["<lowercase-topic>", ...]
 }}
 
 # THEMES — pick EXACTLY ONE
-- "nuevo_modelo" — A new AI MODEL is launched/announced (LLM, image, video, audio, embedding). Only the model itself.
+- "models" — A new AI MODEL is launched/announced (LLM, image, video, audio, embedding). Only the model itself.
     e.g. "OpenAI lanza GPT-5", "Google presenta Gemini 2.5 Pro", "Meta libera Llama 4"
-- "herramienta_nueva" — A new TOOL, platform, or AI PRODUCT users can use. A product, not a bare model.
+- "tools" — A new TOOL, platform, or AI PRODUCT users can use. A product, not a bare model.
     e.g. "Anthropic lanza Claude Code", "Canva integra generación de vídeo"
-- "nueva_funcionalidad" — Existing tool/model gets a relevant UPDATE or new feature. Not a new product, an upgrade.
+- "features" — Existing tool/model gets a relevant UPDATE or new feature. Not a new product, an upgrade.
     e.g. "ChatGPT navega la web", "Midjourney añade modo vídeo"
-- "movimiento_empresarial" — Corporate move: M&A, alliances, funding rounds, IPO, layoffs, key hires,
+- "business" — Corporate move: M&A, alliances, funding rounds, IPO, layoffs, key hires,
   strategic AI positioning decisions.
     e.g. "Amazon compra startup IA por 4B", "OpenAI cierra ronda a 150B"
-- "caso_practico" — A real company has ALREADY IMPLEMENTED AI in production with measurable results.
+- "cases" — A real company has ALREADY IMPLEMENTED AI in production with measurable results.
   Who, what problem, what outcome. Numbers preferred.
     e.g. "Walmart reduce 30% errores con visión artificial"
-- "insight_negocio" — Strategic analysis / framework / vision on how AI changes business models,
+- "insights" — Strategic analysis / framework / vision on how AI changes business models,
   product lifecycle, team management, GTM, margins, executive leadership. A thesis a director can apply.
     e.g. "SaaS unbundled, AI rebundles", "Growth is now a trust problem"
-- "ejemplo_uso" — Tutorial, workflow, recipe, or hands-on demo showing HOW TO USE an AI tool for something
+- "tutorials" — Tutorial, workflow, recipe, or hands-on demo showing HOW TO USE an AI tool for something
   concrete. Actionable content: "you can do this today".
     e.g. "Plantilla de n8n para reporting", "Cómo crear pósters con Nano Banana"
-- "noticia_relevante" — Important AI news that doesn't fit above: regulation, policy, academic research with
+- "other" — Important AI news that doesn't fit above: regulation, policy, academic research with
   real impact, ethics debates, geopolitics, labor impact.
     e.g. "UE aprueba restricciones al uso de IA en RRHH"
-- "irrelevante" — Noise: clickbait, repeats with no new angle, purely academic papers with no application,
+- "irrelevant" — Noise: clickbait, repeats with no new angle, purely academic papers with no application,
   opinion without substance, promotional content masquerading as news.
 
 # DISAMBIGUATION
-- "movimiento_empresarial" = what a company DECIDES (money, alliances, positioning)
-- "caso_practico" = what a company HAS ALREADY IMPLEMENTED (execution with data)
-- "ejemplo_uso" = HOW YOU CAN DO IT (actionable tutorial)
-- "insight_negocio" = HOW THE RULES OF THE GAME CHANGE (strategic reflection)
+- "business" = what a company DECIDES (money, alliances, positioning)
+- "cases" = what a company HAS ALREADY IMPLEMENTED (execution with data)
+- "tutorials" = HOW YOU CAN DO IT (actionable tutorials)
+- "insights" = HOW THE RULES OF THE GAME CHANGE (strategic reflection)
 
 # Theme ↔ category coherence rules
-- If `theme == "irrelevante"`, you MUST set `category = "noise"`.
-- If `topic_match == "off_topic"`, you MUST set both `theme = "irrelevante"` and `category = "noise"`.
+- If `theme == "irrelevant"`, you MUST set `category = "noise"`.
+- If `topic_match == "off_topic"`, you MUST set both `theme = "irrelevant"` and `category = "noise"`.
 - Otherwise pick the theme that best fits and a coherent category (valuable / medium).
 
 # IMPORTANCE TIER — coarse triage for daily briefing ordering
-- "alta" = industry-shifting (frontier model launch, $1B+ deal, regulation passed, paradigm shift).
-- "media" = noteworthy in its category but skippable for a one-day-out reader.
-- "baja" = niche, low-signal, only relevant to specialists.
-Most articles should be "baja" or "media". "alta" is reserved for genuine top-of-briefing material.
+- "high" = industry-shifting (frontier model launch, $1B+ deal, regulation passed, paradigm shift).
+- "medium" = noteworthy in its category but skippable for a one-day-out reader.
+- "low" = niche, low-signal, only relevant to specialists.
+Most articles should be "low" or "medium". "high" is reserved for genuine top-of-briefing material.
 
 # Other rules
 - `comment_worthy = true` only if a LinkedIn creator could write a non-generic take (real claim, real stakes,
@@ -320,7 +320,7 @@ DEFAULT TO ACCEPT (worth=true). The downstream pipeline handles quality.
 Reject (worth=false) ONLY when the title is OBVIOUSLY one of:
   - Pure promo / CTA ("link in bio", "te dejo la guía", "use my code")
   - Listicle clickbait ("Top 10 AI Tools", "5 things you need")
-  - "How to" tutorial for a basic skill
+  - "How to" tutorials for a basic skill
   - Sensationalist clickbait with multiple emojis or all-caps shouting
     ("AI IS INSANE!!!", "🤖🤖🤖 AI WILL KILL US ALL")
   - "Curso gratis", "free course", day-N challenge content

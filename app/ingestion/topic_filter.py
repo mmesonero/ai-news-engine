@@ -55,7 +55,7 @@ _PROMO_PATTERNS = [
     # Pointer emojis at the start of titles (very common in promo shorts)
     r"^[\s]*[👉👇👆🔥💥⚡🎁🎉][\s🏻🏼🏽🏾🏿]*",
     # Spanish CTA phrases
-    r"te\s+dejo\s+(el|la|los|las)\s+(prompt|gu[íi]a|link|enlace|c[oó]digo|curso|plantilla|tutorial)",
+    r"te\s+dejo\s+(el|la|los|las)\s+(prompt|gu[íi]a|link|enlace|c[oó]digo|curso|plantilla|tutorials)",
     r"fijad[oa]s?\s+en\s+(los|las)?\s*comentarios",
     r"link\s+en\s+(la\s+)?bio",
     r"enlace\s+en\s+(la\s+)?bio",

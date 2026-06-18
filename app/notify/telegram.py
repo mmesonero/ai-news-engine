@@ -29,14 +29,14 @@ _TG_API = "https://api.telegram.org/bot{token}/sendMessage"
 
 # Per-theme emoji shown at the start of each story message.
 _THEME_EMOJI = {
-    "nuevo_modelo": "🧠",
-    "herramienta_nueva": "🛠️",
-    "nueva_funcionalidad": "✨",
-    "movimiento_empresarial": "💼",
-    "caso_practico": "📈",
-    "insight_negocio": "💡",
-    "ejemplo_uso": "🧪",
-    "noticia_relevante": "🌐",
+    "models": "🧠",
+    "tools": "🛠️",
+    "features": "✨",
+    "business": "💼",
+    "cases": "📈",
+    "insights": "💡",
+    "tutorials": "🧪",
+    "other": "🌐",
 }
 
 
@@ -136,9 +136,9 @@ async def send_new_stories(session: AsyncSession, hours: int = 48, max_send: int
 
     sources = func.count(func.distinct(RawContent.source_id)).label("sources")
     tier_rank = case(
-        (ProcessedContent.importance_tier == "alta", 3),
-        (ProcessedContent.importance_tier == "media", 2),
-        (ProcessedContent.importance_tier == "baja", 1),
+        (ProcessedContent.importance_tier == "high", 3),
+        (ProcessedContent.importance_tier == "medium", 2),
+        (ProcessedContent.importance_tier == "low", 1),
         else_=0,
     ).label("tier_rank")
 
@@ -150,7 +150,7 @@ async def send_new_stories(session: AsyncSession, hours: int = 48, max_send: int
         .where(ContentCluster.notified_at.is_(None))
         .where(ProcessedContent.is_noise.is_(False))
         .where(ProcessedContent.theme.isnot(None))
-        .where(ProcessedContent.theme != "irrelevante")
+        .where(ProcessedContent.theme != "irrelevant")
         .where(
             or_(
                 RawContent.published_at >= since,
@@ -170,11 +170,11 @@ async def send_new_stories(session: AsyncSession, hours: int = 48, max_send: int
     async with httpx.AsyncClient(timeout=20) as client:
         for cluster, raw, proc, src_count, _rank in rows:
             text = _render_story(
-                theme=proc.theme or "noticia_relevante",
+                theme=proc.theme or "other",
                 title=proc.title_es or raw.title,
                 url=raw.url,
                 score=proc.importance_score,
-                tier=proc.importance_tier or "baja",
+                tier=proc.importance_tier or "low",
                 sources=int(src_count) if src_count else 1,
                 summary=proc.cleaned_summary,
             )
@@ -218,11 +218,11 @@ async def update_boosted_stories(session: AsyncSession, max_edits: int = 30) -> 
         for cluster, raw, proc, src_count in rows:
             n_src = int(src_count) if src_count else 1
             text = _render_story(
-                theme=proc.theme or "noticia_relevante",
+                theme=proc.theme or "other",
                 title=proc.title_es or raw.title,
                 url=raw.url,
                 score=proc.importance_score,
-                tier=proc.importance_tier or "baja",
+                tier=proc.importance_tier or "low",
                 sources=n_src,
                 summary=proc.cleaned_summary,
             )
