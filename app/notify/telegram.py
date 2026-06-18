@@ -112,15 +112,15 @@ def _render_story(
     emoji = _THEME_EMOJI.get(theme, "🌐")
     boosted = _boosted(score, sources)
     nota = f"{boosted}/100" if score is not None else (tier or "—")
-    t = _esc((title or "(sin título)")[:200])
-    src = f"  ·  📡 {sources} fuentes" if sources > 1 else ""
+    t = _esc((title or "(untitled)")[:200])
+    src = f"  ·  📡 {sources} sources" if sources > 1 else ""
     head = f"{emoji} <b>{t}</b>\n{nota}{src}"
     parts = [head]
     if summary:
         parts.append(_esc(summary.strip()[:400]))
     # Link to OUR web detail page (summary + data + source inside), not the source.
     if url:
-        parts.append(f'<a href="{_esc(detail_url(url))}">Ver en la web →</a>')
+        parts.append(f'<a href="{_esc(detail_url(url))}">Read on the web →</a>')
     return "\n\n".join(parts)
 
 
