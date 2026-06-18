@@ -20,8 +20,7 @@ from email.mime.text import MIMEText
 from app.config import settings
 from app.export.static_site import (
     _PLAYER_LOGO,
-    _SHORT_LABEL,
-    _THEME_EMOJI,
+    _THEME_EN,
     _collect,
     _esc,
     _site_home,
@@ -69,10 +68,9 @@ def _clip(s: str | None, n: int = 600) -> str:
 
 
 def _meta_line(it: dict) -> str:
-    emoji = _THEME_EMOJI.get(it["theme"], "🌐")
-    label = _SHORT_LABEL.get(it["theme"], "Otras")
+    emoji, label = _THEME_EN.get(it["theme"], ("🌐", "Other"))
     score = it["relevance"] or it["score"] or 0
-    srcs = f' &nbsp;·&nbsp; 📡 {it["sources"]} fuentes' if it["sources"] > 1 else ""
+    srcs = f' &nbsp;·&nbsp; 📡 {it["sources"]} sources' if it["sources"] > 1 else ""
     return (
         f'<span style="text-transform:uppercase;letter-spacing:.08em;">{emoji} {label}</span>'
         f' &nbsp;·&nbsp; <span style="color:{_GOLD};font-weight:700;">{score}/100</span>{srcs}'
@@ -91,12 +89,12 @@ def _render_email(items: list[dict]) -> str:
         '<tr><td style="padding:12px 0 0;text-align:center;">'
         f'<a href="{tg_url}" style="background:#2AABEE;color:#ffffff;font:700 13px/1 Arial,sans-serif;'
         'text-decoration:none;padding:12px 24px;border-radius:999px;display:inline-block;">'
-        '📣 Únete en Telegram →</a></td></tr>'
+        '📣 Join us on Telegram →</a></td></tr>'
     ) if tg_url else ""
     unsub_to = settings.email_from or settings.email_user or ""
-    unsub = f"mailto:{unsub_to}?subject=Baja" if unsub_to else f"{home}/ai-news/"
+    unsub = f"mailto:{unsub_to}?subject=Unsubscribe" if unsub_to else f"{home}/ai-news/"
     addr = f' &nbsp;·&nbsp; {_esc(settings.email_address)}' if settings.email_address else ""
-    preheader = f"{len(items)} noticias de IA de la semana — filtradas, deduplicadas y resumidas."
+    preheader = f"{len(items)} AI stories this week — filtered, deduplicated and summarized."
 
     # Uniform cards — EVERY story rendered the same way (image shown if available).
     def _card(it):
@@ -110,7 +108,7 @@ def _render_email(items: list[dict]) -> str:
     {hero}
     <tr><td style="padding:0 0 8px;"><a href="{detail_url(it["url"])}" style="font:700 19px/1.32 Arial,sans-serif;color:{_INK};text-decoration:none;letter-spacing:-.01em;">{_esc(it["title"])}</a></td></tr>
     <tr><td style="padding:0 0 10px;font:300 14.5px/1.6 Arial,sans-serif;color:{_MUTED};">{_esc(_clip(it["summary"]))}</td></tr>
-    <tr><td style="font:12px/1 Arial,sans-serif;">{_email_players(it.get("players"))}<a href="{detail_url(it["url"])}" style="color:{_GOLD};font-weight:700;text-decoration:none;float:right;">Leer →</a></td></tr>
+    <tr><td style="font:12px/1 Arial,sans-serif;">{_email_players(it.get("players"))}<a href="{detail_url(it["url"])}" style="color:{_GOLD};font-weight:700;text-decoration:none;float:right;">Read →</a></td></tr>
     <tr><td style="padding:20px 0;"><div style="height:1px;background:#ece8dc;"></div></td></tr>"""
 
     cards = "".join(_card(it) for it in items)
@@ -126,24 +124,24 @@ def _render_email(items: list[dict]) -> str:
    <tr><td style="padding:26px 26px 30px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
     <tr><td align="right" style="font:12px Arial,sans-serif;color:{_SOFT};padding:0 0 14px;">
-      {week} &nbsp;|&nbsp; <a href="{home}/ai-news/" style="color:{_GOLD};text-decoration:none;">Ver online →</a>
+      {week} &nbsp;|&nbsp; <a href="{home}/ai-news/" style="color:{_GOLD};text-decoration:none;">Read online →</a>
     </td></tr>
     <tr><td style="background:#0d0d0d;border-radius:16px;padding:30px 24px;text-align:center;">
       <div style="font:800 30px/1 Arial,sans-serif;color:#ECEAE3;letter-spacing:-.02em;">AI <span style="color:#e2ba6b;">News</span></div>
-      <div style="font:700 11px/1 Arial,sans-serif;color:#9a938a;letter-spacing:.22em;text-transform:uppercase;margin-top:10px;">Resumen semanal · {len(items)} noticias</div>
+      <div style="font:700 11px/1 Arial,sans-serif;color:#9a938a;letter-spacing:.22em;text-transform:uppercase;margin-top:10px;">Weekly digest · {len(items)} stories</div>
     </td></tr>
-    <tr><td style="padding:24px 0 4px;font:700 22px/1.25 Arial,sans-serif;color:{_INK};letter-spacing:-.01em;">Lo importante de la semana en IA 🗞️</td></tr>
-    <tr><td style="padding:0 0 18px;font:300 15px/1.6 Arial,sans-serif;color:{_MUTED};">{len(items)} historias filtradas, deduplicadas y resumidas.</td></tr>
+    <tr><td style="padding:24px 0 4px;font:700 22px/1.25 Arial,sans-serif;color:{_INK};letter-spacing:-.01em;">This week in AI 🗞️</td></tr>
+    <tr><td style="padding:0 0 18px;font:300 15px/1.6 Arial,sans-serif;color:{_MUTED};">{len(items)} stories — filtered, deduplicated and summarized.</td></tr>
     <tr><td style="padding:0 0 22px;"><div style="height:2px;background:{_GOLD};width:48px;"></div></td></tr>
     {cards}{empty}
     <tr><td style="padding:28px 0 0;text-align:center;">
-      <a href="{home}/ai-news/" style="background:#0d0d0d;color:#e2ba6b;font:700 13px/1 Arial,sans-serif;text-decoration:none;padding:12px 24px;border-radius:999px;display:inline-block;">Ver todo en la web →</a>
+      <a href="{home}/ai-news/" style="background:#0d0d0d;color:#e2ba6b;font:700 13px/1 Arial,sans-serif;text-decoration:none;padding:12px 24px;border-radius:999px;display:inline-block;">See all on the web →</a>
     </td></tr>
     {tg_cta}
     <tr><td style="padding:22px 0 0;text-align:center;font:12px/1.6 Arial,sans-serif;color:{_SOFT};">
-      Recopilado y deduplicado con IA · el score (0–100) mide la relevancia editorial<br>
+      Curated &amp; deduplicated with AI · the score (0–100) is editorial relevance<br>
       <a href="{home}/" style="color:{_GOLD};text-decoration:none;">Manuel Mesonero</a> · AI News{addr}<br>
-      Semanal · cada domingo · <a href="{unsub}" style="color:{_SOFT};text-decoration:underline;">Darse de baja</a>
+      Weekly · every Sunday · <a href="{unsub}" style="color:{_SOFT};text-decoration:underline;">Unsubscribe</a>
     </td></tr>
     </table>
    </td></tr>
@@ -176,12 +174,12 @@ async def send_weekly_digest() -> int:
     recipients = [r.strip() for r in settings.email_to.split(",") if r.strip()]
     sender = settings.email_from or settings.email_user
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"🗞️ AI News · {len(items)} noticias de la semana"
+    msg["Subject"] = f"🗞️ AI News · {len(items)} stories this week"
     msg["From"] = sender
     msg["To"] = ", ".join(recipients)
     # Standard one-click/list unsubscribe (mailto) — improves deliverability.
     msg["List-Unsubscribe"] = f"<mailto:{sender}?subject=Unsubscribe>"
-    msg.attach(MIMEText("Abre este correo en un cliente compatible con HTML.", "plain"))
+    msg.attach(MIMEText("Open this email in an HTML-capable client.", "plain"))
     msg.attach(MIMEText(_render_email(items), "html"))
 
     try:
