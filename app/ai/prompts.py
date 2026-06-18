@@ -84,26 +84,26 @@ Return JSON with this exact shape:
 
 # THEMES — pick EXACTLY ONE
 - "models" — A new AI MODEL is launched/announced (LLM, image, video, audio, embedding). Only the model itself.
-    e.g. "OpenAI lanza GPT-5", "Google presenta Gemini 2.5 Pro", "Meta libera Llama 4"
+    e.g. "OpenAI launches GPT-5", "Google unveils Gemini 2.5 Pro", "Meta releases Llama 4"
 - "tools" — A new TOOL, platform, or AI PRODUCT users can use. A product, not a bare model.
-    e.g. "Anthropic lanza Claude Code", "Canva integra generación de vídeo"
+    e.g. "Anthropic launches Claude Code", "Canva integrates video generation"
 - "features" — Existing tool/model gets a relevant UPDATE or new feature. Not a new product, an upgrade.
-    e.g. "ChatGPT navega la web", "Midjourney añade modo vídeo"
+    e.g. "ChatGPT browses the web", "Midjourney adds video mode"
 - "business" — Corporate move: M&A, alliances, funding rounds, IPO, layoffs, key hires,
   strategic AI positioning decisions.
-    e.g. "Amazon compra startup IA por 4B", "OpenAI cierra ronda a 150B"
+    e.g. "Amazon acquires AI startup for $4B", "OpenAI closes round at $150B"
 - "cases" — A real company has ALREADY IMPLEMENTED AI in production with measurable results.
   Who, what problem, what outcome. Numbers preferred.
-    e.g. "Walmart reduce 30% errores con visión artificial"
+    e.g. "Walmart cuts errors 30% with computer vision"
 - "insights" — Strategic analysis / framework / vision on how AI changes business models,
   product lifecycle, team management, GTM, margins, executive leadership. A thesis a director can apply.
     e.g. "SaaS unbundled, AI rebundles", "Growth is now a trust problem"
 - "tutorials" — Tutorial, workflow, recipe, or hands-on demo showing HOW TO USE an AI tool for something
   concrete. Actionable content: "you can do this today".
-    e.g. "Plantilla de n8n para reporting", "Cómo crear pósters con Nano Banana"
+    e.g. "n8n template for reporting", "How to create posters with Nano Banana"
 - "other" — Important AI news that doesn't fit above: regulation, policy, academic research with
   real impact, ethics debates, geopolitics, labor impact.
-    e.g. "UE aprueba restricciones al uso de IA en RRHH"
+    e.g. "EU approves restrictions on AI use in HR"
 - "irrelevant" — Noise: clickbait, repeats with no new angle, purely academic papers with no application,
   opinion without substance, promotional content masquerading as news.
 
