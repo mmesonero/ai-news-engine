@@ -154,8 +154,8 @@ _MIN_STORIES = 10  # curated default: the week's top 10...
 
 async def _gather() -> list[dict]:
     # Last 7 days, relevant only (exclude 'baja'), ordered by boosted score.
-    # Curated: the top 5, PLUS any extra high-importance ('alta') story beyond the
-    # top 5 so a busy week isn't cut short. Capped at email_max_items.
+    # Curated: the top _MIN_STORIES, PLUS any extra high-importance ('alta') story
+    # beyond that so a busy week isn't cut short. Capped at email_max_items.
     items = await _collect(hours=168, limit=80)
     items = [it for it in items if (it.get("tier") or "media") != "baja"]
     extra_alta = [it for it in items[_MIN_STORIES:] if it.get("tier") == "alta"]
@@ -190,8 +190,10 @@ async def send_weekly_digest() -> int:
         log.info("email.sent", recipients=len(recipients), stories=len(items))
         return len(items)
     except Exception as e:
-        log.warning("email.failed", err=str(e)[:200])
-        return 0
+        # Re-raise so a broken send turns the Actions run RED (visible alert),
+        # instead of silently "succeeding" with nothing delivered.
+        log.error("email.failed", err=str(e)[:200])
+        raise
 
 
 def main() -> None:
