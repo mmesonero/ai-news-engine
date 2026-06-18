@@ -567,7 +567,7 @@ def _data_payload(items: list[dict], now: int) -> dict:
         ]
         data.append(
             {
-                "title": it["title"] or "(sin título)",
+                "title": it["title"] or "(untitled)",
                 "detail": detail_path(it["url"]),  # n/<slug>.html — click → detail (same as Telegram)
                 "url": it["url"],
                 "theme": _INDEX_THEME.get(it["theme"], "otras"),
