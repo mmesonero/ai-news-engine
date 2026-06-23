@@ -184,6 +184,9 @@ matters (the concrete implication for the reader), not just describe. Hedge extr
 # Rate these 5 factors, then set `importance` = their SUM (0-100). Show the five
 # numbers in `reasoning` like "mag12+plr18+con13+rch14+nov8=65". This forces honest
 # spread — two stories rarely sum to the exact same total. DO NOT default to 50/65/70.
+# CRITICAL — anti-rounding: each factor is a PRECISE integer (e.g. 12, 17, 6), NOT snapped
+# to 0/5/10/15. Real sums look like 67, 73, 58, 49 — a result landing on a clean multiple
+# of 5 should be rare. If your draft sum is a round 5, re-examine the factors and adjust.
 
 # 1. MAGNITUDE (0-30) — how big is the actual thing?
 #    27-30: frontier model / $1B+ deal / national-or-global policy / market-structure shift
