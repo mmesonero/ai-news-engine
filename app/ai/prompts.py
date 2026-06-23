@@ -190,12 +190,15 @@ matters (the concrete implication for the reader), not just describe. Hedge extr
 #    18-26: $100M-1B funding or valuation, big-player flagship product, major regulator action
 #    9-17 : $10-100M funding, notable product in one vertical, mid-size deal
 #    0-8  : <$10M, minor update, blog post, internal/he-said
-# 2. PLAYER WEIGHT (0-20) — who is involved?
-#    15-20: big-tech (Google/Amazon/Meta/Microsoft/Apple/NVIDIA) OR frontier lab
-#           (OpenAI/Anthropic/DeepMind/Mistral/xAI) OR named tier-1 investor (a16z, Sequoia,
-#           Khosla, SoftBank, sovereign/pension funds)
-#    8-14 : known mid-tier company / recognised founder / named secondary investor
-#    0-7  : unknown startup, no named heavyweight
+# 2. PLAYER WEIGHT (0-20) — who is involved? Scales with HOW MANY heavyweights.
+#    A "heavyweight" = big-tech (Google/Amazon/Meta/Microsoft/Apple/NVIDIA), frontier lab
+#    (OpenAI/Anthropic/DeepMind/Mistral/xAI), or named tier-1 investor (a16z, Sequoia, Khosla,
+#    SoftBank, sovereign/pension fund).
+#    16-20: TWO+ heavyweights involved (deal/alliance/funding between or backed by several),
+#           or one heavyweight in a defining move for the whole field
+#    11-15: exactly ONE heavyweight
+#    6-10 : no heavyweight but a known mid-tier company / recognised founder / named secondary investor
+#    0-5  : unknown startup, nobody named
 # 3. CONCRETENESS (0-20) — hard, verifiable specifics?
 #    16-20: specific $ figure AND named entity AND a dated/measurable fact
 #    9-15 : some concrete numbers or named actors

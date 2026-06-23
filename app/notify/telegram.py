@@ -141,6 +141,10 @@ async def send_new_stories(session: AsyncSession, hours: int = 48, max_send: int
         (ProcessedContent.importance_tier == "low", 1),
         else_=0,
     ).label("tier_rank")
+    # Boosted score (importance + cross-source boost) — same as what the reader sees.
+    boosted = func.coalesce(ProcessedContent.importance_score, 0) + func.least(
+        20, (func.count(func.distinct(RawContent.source_id)) - 1) * 8
+    )
 
     stmt = (
         select(ContentCluster, RawContent, ProcessedContent, sources, tier_rank)
@@ -158,6 +162,7 @@ async def send_new_stories(session: AsyncSession, hours: int = 48, max_send: int
             )
         )
         .group_by(ContentCluster.id, RawContent.id, ProcessedContent.id)
+        .having(boosted >= settings.telegram_min_score)  # only push score >= threshold
         .order_by(desc(tier_rank), desc(func.coalesce(ProcessedContent.importance_score, 0)))
         .limit(max_send)
     )

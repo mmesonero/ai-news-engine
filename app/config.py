@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str = Field(default="")
     telegram_chat_id: str = Field(default="")
     telegram_max_items: int = Field(default=12, description="Max stories per daily briefing message set.")
+    telegram_min_score: int = Field(default=65, description="Only push stories with boosted score >= this.")
 
     # Weekly email digest (optional). SMTP — works with Gmail (smtp.gmail.com + App
     # Password) or Resend (smtp.resend.com, user="resend", pass=API key). Secrets only.
