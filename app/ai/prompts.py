@@ -180,36 +180,41 @@ matters (the concrete implication for the reader), not just describe. Hedge extr
   }}
 }}
 
-# Strict scoring rubric — STOP inflating scores
+# IMPORTANCE — score ADDITIVELY, never pick a round number by feel.
+# Rate these 5 factors, then set `importance` = their SUM (0-100). Show the five
+# numbers in `reasoning` like "mag12+plr18+con13+rch14+nov8=65". This forces honest
+# spread — two stories rarely sum to the exact same total. DO NOT default to 50/65/70.
 
-Use the FULL 0-100 range. Most articles should land in 30-60.
-A score of 80+ is reserved for genuinely industry-shifting news.
-A score of 90+ is for once-a-quarter events (major IPO, new SOTA model, antitrust ruling, $1B+ acquisition).
+# 1. MAGNITUDE (0-30) — how big is the actual thing?
+#    27-30: frontier model / $1B+ deal / national-or-global policy / market-structure shift
+#    18-26: $100M-1B funding or valuation, big-player flagship product, major regulator action
+#    9-17 : $10-100M funding, notable product in one vertical, mid-size deal
+#    0-8  : <$10M, minor update, blog post, internal/he-said
+# 2. PLAYER WEIGHT (0-20) — who is involved?
+#    15-20: big-tech (Google/Amazon/Meta/Microsoft/Apple/NVIDIA) OR frontier lab
+#           (OpenAI/Anthropic/DeepMind/Mistral/xAI) OR named tier-1 investor (a16z, Sequoia,
+#           Khosla, SoftBank, sovereign/pension funds)
+#    8-14 : known mid-tier company / recognised founder / named secondary investor
+#    0-7  : unknown startup, no named heavyweight
+# 3. CONCRETENESS (0-20) — hard, verifiable specifics?
+#    16-20: specific $ figure AND named entity AND a dated/measurable fact
+#    9-15 : some concrete numbers or named actors
+#    0-6  : vague, PR-speak, "connecting knowledge", explainer, no real number
+# 4. REACH (0-15) — who is affected?
+#    11-15: consumer-scale / cross-industry / society / policy
+#    5-10 : one vertical or a professional audience
+#    0-4  : niche / specialists only
+# 5. NOVELTY (0-15) — is it genuinely new?
+#    11-15: names a clear before->after, first-of-its-kind, "impossible until now"
+#    5-10 : notable but incremental
+#    0-4  : retrospective, recap, routine feature update, opinion rehash
 
-importance — favour PARADIGM SHIFTS over scandals/incidents:
-  0-30  = routine product update, blog post, internal news, evergreen explainer,
-          isolated scandal / single bad actor / fraud anecdote (unless regulatory)
-  31-50 = noteworthy product release with limited reach (open weights model, beta launch),
-          $5-50M funding, opinion piece with concrete claim,
-          single-incident scandals reported in news media (no policy follow-through)
-  51-70 = significant for a vertical (major enterprise rollout, $100M+ funding round, regulatory PROPOSAL),
-          incremental product launches by AI labs
-  71-85 = industry-shifting paradigm change (frontier model release, $1B+ funding/acquisition,
-          regulation PASSED, infrastructure rewrites that reframe how the industry works
-          — e.g. "Internet being rebuilt for machines", agentic web standard, new compute paradigm)
-  86-100 = once-per-quarter strategic earthquake (Anthropic IPO at $1T, EU AI Act enforcement,
-          OpenAI splits, NVIDIA loses chip lead, US-China chip ban)
-
-# Important downgrade rules — apply BEFORE assigning final score
-- Scandals / fraud / "X bad actor caught doing Y" without regulatory action → max importance 45
-- Outrage-bait that's high-engagement but low strategic ("AI grifters", "AI is racist") → max 50
-- Single anecdotes / case studies without systemic implications → max 50
-- Opinion pieces with no data, even from named pundits → max 55
-
-# Important upgrade rules
-- Articles framing a NEW INFRASTRUCTURE LAYER or paradigm (agentic web, machine-readable web,
-  new protocol, browser-as-OS) → bump importance +10 if claim is concrete and named
-- Articles where a top-3 lab makes a strategic pivot → bump +5
+# Hard caps applied AFTER summing (take the LOWER value):
+- Scandal/fraud "bad actor caught" without regulatory action -> cap 45
+- Outrage-bait, high-engagement but low-strategic -> cap 50
+- Single anecdote / case study with no systemic data -> cap 50
+- Opinion with no data, even from a named pundit -> cap 55
+- Pure "Introducing/Announcing X" with no comparison or number -> cap 55
 
 linkedin_potential: same scale but weighted toward "would a thoughtful person disagree?"
   - High only if there's a real claim someone can argue against.
