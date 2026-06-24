@@ -16,6 +16,7 @@ import asyncio
 import json
 import re
 import sys
+import unicodedata
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -80,18 +81,21 @@ def _esc(s: str) -> str:
 
 def _bold(s: str) -> str:
     """Map ASCII letters/digits to Mathematical Sans-Serif Bold — LinkedIn has no
-    rich text, so titles are 'bolded' with these glyphs. Other chars pass through."""
+    rich text, so titles are 'bolded' with these glyphs. Accented letters (á, í, ñ…)
+    have no bold glyph, so we decompose (NFD) and bold the BASE letter + keep the
+    accent as a combining mark on top — otherwise tildes render unbolded and look off."""
     out = []
     for ch in s:
-        o = ord(ch)
-        if 0x41 <= o <= 0x5A:        # A-Z
-            out.append(chr(0x1D5D4 + o - 0x41))
-        elif 0x61 <= o <= 0x7A:      # a-z
-            out.append(chr(0x1D5EE + o - 0x61))
-        elif 0x30 <= o <= 0x39:      # 0-9
-            out.append(chr(0x1D7EC + o - 0x30))
-        else:
-            out.append(ch)
+        for d in unicodedata.normalize("NFD", ch):
+            o = ord(d)
+            if 0x41 <= o <= 0x5A:        # A-Z
+                out.append(chr(0x1D5D4 + o - 0x41))
+            elif 0x61 <= o <= 0x7A:      # a-z
+                out.append(chr(0x1D5EE + o - 0x61))
+            elif 0x30 <= o <= 0x39:      # 0-9
+                out.append(chr(0x1D7EC + o - 0x30))
+            else:
+                out.append(d)            # combining accents + other chars pass through
     return "".join(out)
 
 
