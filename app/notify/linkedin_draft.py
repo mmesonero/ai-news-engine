@@ -44,6 +44,23 @@ def _esc(s: str) -> str:
     return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def _bold(s: str) -> str:
+    """Map ASCII letters/digits to Mathematical Sans-Serif Bold — LinkedIn has no
+    rich text, so titles are 'bolded' with these glyphs. Other chars pass through."""
+    out = []
+    for ch in s:
+        o = ord(ch)
+        if 0x41 <= o <= 0x5A:        # A-Z
+            out.append(chr(0x1D5D4 + o - 0x41))
+        elif 0x61 <= o <= 0x7A:      # a-z
+            out.append(chr(0x1D5EE + o - 0x61))
+        elif 0x30 <= o <= 0x39:      # 0-9
+            out.append(chr(0x1D7EC + o - 0x30))
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
 def _hashtag(name: str) -> str:
     h = re.sub(r"[^A-Za-z0-9]", "", name or "")
     return f"#{h}" if h else ""
@@ -73,9 +90,9 @@ def weekly_body(items: list[dict]) -> tuple[str, str]:
         if not title:
             continue
         summ = _clip(it.get("summary") or "", 240)
-        blocks.append(f"{title}\n{summ}" if summ else title)
+        blocks.append(f"{_bold(title)}\n{summ}" if summ else _bold(title))
     body = (
-        "🗞️ This week in AI\n\n"
+        f"🗞️ {_bold('This week in AI')}\n\n"
         "The stories that mattered — deduplicated and ranked:\n\n"
         + "\n\n".join(blocks)
         + "\n\n📲 Get this briefing every week — on Telegram or by email. Link in comments 👇\n\n"
@@ -89,7 +106,7 @@ def breaking_body(title: str, summary: str, players: list[str], url: str) -> tup
     """Return (post_body, first_comment) for a single breaking story."""
     players = [p for p in (players or []) if p][:3]
     tags = "#AI #ArtificialIntelligence " + " ".join(_hashtag(p) for p in players)
-    parts = [f"🚨 {title.strip()}", ""]
+    parts = [f"🚨 {_bold(title.strip())}", ""]
     summ = _clip(summary)
     if summ:
         parts += [summ, ""]
