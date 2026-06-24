@@ -81,9 +81,9 @@ def _esc(s: str) -> str:
 
 def _bold(s: str) -> str:
     """Map ASCII letters/digits to Mathematical Sans-Serif Bold — LinkedIn has no
-    rich text, so titles are 'bolded' with these glyphs. Accented letters (á, í, ñ…)
-    have no bold glyph, so we decompose (NFD) and bold the BASE letter + keep the
-    accent as a combining mark on top — otherwise tildes render unbolded and look off."""
+    rich text. Accented letters have no bold glyph, so we decompose (NFD) and DROP
+    the accent (cleaner than a combining mark stacked on the bold glyph), e.g.
+    'días' → '𝗱𝗶𝗮𝘀'. Exception: the ñ tilde is KEPT (dropping it turns 'año'→'ano')."""
     out = []
     for ch in s:
         for d in unicodedata.normalize("NFD", ch):
@@ -94,8 +94,12 @@ def _bold(s: str) -> str:
                 out.append(chr(0x1D5EE + o - 0x61))
             elif 0x30 <= o <= 0x39:      # 0-9
                 out.append(chr(0x1D7EC + o - 0x30))
+            elif unicodedata.category(d) == "Mn":   # combining accent
+                if d == "̃":        # tilde → keep, so ñ survives
+                    out.append(d)
+                # any other accent (acute, diaeresis…) is dropped
             else:
-                out.append(d)            # combining accents + other chars pass through
+                out.append(d)
     return "".join(out)
 
 
