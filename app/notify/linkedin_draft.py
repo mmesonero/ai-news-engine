@@ -141,7 +141,7 @@ def weekly_body(items: list[dict]) -> tuple[str, str]:
         blocks.append(f"{_bold(title)}\n{summ}" if summ else _bold(title))
     body = (
         f"🗞️ {_bold('Esta semana en IA')}\n\n"
-        "Las noticias más relevantes:\n\n"
+        "Las noticias más relevantes de la semana pasada:\n\n"
         + "\n\n".join(blocks)
         + "\n\n📲 Recíbelas por Telegram o email. Enlace en comentarios 👇\n\n"
         + _HASHTAGS
