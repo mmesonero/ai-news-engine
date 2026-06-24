@@ -53,6 +53,20 @@ def _boosted(score: int | None, sources: int) -> int:
     return (score or 0) + min(20, max(0, sources - 1) * 8)
 
 
+def _clip(s: str | None, n: int = 600) -> str:
+    """Trim WITHOUT cutting mid-sentence: prefer last sentence end, else last word + …
+    n=600 keeps the whole message under Telegram's 1024-char photo-caption limit."""
+    s = (s or "").strip()
+    if len(s) <= n:
+        return s
+    cut = s[:n]
+    end = max(cut.rfind(". "), cut.rfind("! "), cut.rfind("? "))
+    if end >= int(n * 0.5):
+        return cut[: end + 1]
+    sp = cut.rfind(" ")
+    return (cut[:sp] if sp > 0 else cut).rstrip(" ,;:") + "…"
+
+
 def _api(method: str) -> str:
     return _TG_API.format(token=settings.telegram_bot_token).replace("sendMessage", method)
 
@@ -117,7 +131,7 @@ def _render_story(
     head = f"{emoji} <b>{t}</b>\n{nota}{src}"
     parts = [head]
     if summary:
-        parts.append(_esc(summary.strip()[:400]))
+        parts.append(_esc(_clip(summary)))
     # Link to OUR web detail page (summary + data + source inside), not the source.
     if url:
         parts.append(f'<a href="{_esc(detail_url(url))}">Read on the web →</a>')
