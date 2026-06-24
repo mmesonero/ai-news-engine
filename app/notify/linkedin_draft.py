@@ -93,9 +93,9 @@ def weekly_body(items: list[dict]) -> tuple[str, str]:
         blocks.append(f"{_bold(title)}\n{summ}" if summ else _bold(title))
     body = (
         f"🗞️ {_bold('This week in AI')}\n\n"
-        "The stories that mattered — deduplicated and ranked:\n\n"
+        "The most relevant news:\n\n"
         + "\n\n".join(blocks)
-        + "\n\n📲 Get this briefing every week — on Telegram or by email. Link in comments 👇\n\n"
+        + "\n\n📲 Get it every week on Telegram or by email. Link in comments 👇\n\n"
         + _HASHTAGS
     )
     first_comment = f"Full briefing + free signup (Telegram or email): {_web()}"
@@ -113,7 +113,7 @@ def breaking_body(title: str, summary: str, players: list[str], url: str) -> tup
     if players:
         parts += ["Players: " + ", ".join(players), ""]
     parts += [
-        "📲 Daily AI news, deduplicated — on Telegram or by email. Link in comments 👇",
+        "📲 Daily AI news on Telegram or by email. Link in comments 👇",
         "",
         tags.strip(),
     ]
