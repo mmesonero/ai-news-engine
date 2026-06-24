@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -80,6 +80,18 @@ class Settings(BaseSettings):
     whisper_max_per_run: int = Field(default=15, description="Cap transcription invocations per pipeline run.")
 
     embedding_dim: int = 1536
+
+    @field_validator(
+        "email_port", "brevo_list_id", "telegram_min_score", "telegram_max_items",
+        "email_max_items", mode="before",
+    )
+    @classmethod
+    def _blank_int_to_default(cls, v, info):
+        """An unset GitHub secret is injected as an empty string. Don't let that crash
+        int parsing — fall back to the field's declared default."""
+        if v is None or (isinstance(v, str) and v.strip() == ""):
+            return cls.model_fields[info.field_name].default
+        return v
 
 
 @lru_cache(maxsize=1)

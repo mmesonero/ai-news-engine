@@ -24,7 +24,6 @@ jobs:
       BREVO_LIST_ID: ${{ secrets.BREVO_LIST_ID }}
       EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
       EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
-      EMAIL_PORT: ${{ secrets.EMAIL_PORT }}
       EMAIL_USER: ${{ secrets.EMAIL_USER }}
       EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
       EMAIL_TO: ${{ secrets.EMAIL_TO }}
