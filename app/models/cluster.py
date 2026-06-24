@@ -24,6 +24,9 @@ class ContentCluster(Base):
     # so a later duplicate can edit the post to bump the counter + boosted score.
     telegram_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     telegram_sources: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # When this story was turned into a LinkedIn breaking DRAFT. NULL = eligible
+    # (each story is drafted at most once, across both daily runs).
+    linkedin_drafted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

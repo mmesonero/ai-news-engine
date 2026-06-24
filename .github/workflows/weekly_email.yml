@@ -1,7 +1,7 @@
 name: Weekly email digest
 
-# Sends one email with the week's top stories, Sunday morning. Read-only against
-# the DB — no migrations, no OpenAI. Single shot (no backup) so it never duplicates.
+# Sends the weekly email AND a ready-to-paste LinkedIn draft (to Telegram), Sunday
+# morning. Read-only against the DB — no migrations, no OpenAI. Single shot.
 on:
   schedule:
     - cron: "47 6 * * 0"   # Sun 06:47 UTC ≈ 08:47 Spain (summer). Weekend morning = low load.
@@ -27,6 +27,10 @@ jobs:
       EMAIL_USER: ${{ secrets.EMAIL_USER }}
       EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
       EMAIL_TO: ${{ secrets.EMAIL_TO }}
+      # Telegram: the weekly LinkedIn draft is sent here for you to approve + paste.
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      LINKEDIN_DRAFT_CHAT_ID: ${{ secrets.LINKEDIN_DRAFT_CHAT_ID }}
       LOG_LEVEL: INFO
     steps:
       - uses: actions/checkout@v4
@@ -39,3 +43,6 @@ jobs:
           pip install -e .
       - name: Send weekly digest
         run: python -m app.notify.email_digest
+      - name: Send weekly LinkedIn draft to Telegram
+        if: always()   # email + draft are independent; one failing shouldn't skip the other
+        run: python -m app.notify.linkedin_draft weekly

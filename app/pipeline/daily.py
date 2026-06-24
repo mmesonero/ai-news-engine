@@ -7,6 +7,7 @@ import structlog
 
 from app.database import SessionLocal
 from app.logging_config import configure_logging, get_logger
+from app.notify.linkedin_draft import build_and_send_breaking
 from app.notify.telegram import send_new_stories, update_boosted_stories
 from app.ingestion.image_extract import backfill_images
 from app.services.classification_service import ClassificationService, backfill_players
@@ -93,6 +94,11 @@ async def run_daily_pipeline() -> dict[str, int]:
         metrics["telegram_sent"] = await send_new_stories(session)
     async with SessionLocal() as session:
         metrics["telegram_edited"] = await update_boosted_stories(session)
+
+    # If a genuinely big story landed, send a ready-to-paste LinkedIn DRAFT to
+    # Telegram for manual approval (once per story; no-op if nothing crosses the bar).
+    async with SessionLocal() as session:
+        metrics["linkedin_breaking"] = await build_and_send_breaking(session)
 
     log.info("pipeline.done", **metrics)
     structlog.contextvars.clear_contextvars()

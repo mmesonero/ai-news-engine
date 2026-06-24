@@ -67,6 +67,15 @@ class Settings(BaseSettings):
     brevo_api_key: str = Field(default="", description="Brevo API key (api-key header). Secret only.")
     brevo_list_id: int = Field(default=0, description="Brevo contact-list id the campaign targets.")
 
+    # LinkedIn DRAFTS (copy-paste, no LinkedIn API). The engine writes a ready-to-paste
+    # post and sends it to Telegram for you to approve + paste manually.
+    linkedin_min_score: int = Field(default=85, description="Breaking draft only for a top story with boosted score >= this.")
+    linkedin_draft_chat_id: str = Field(
+        default="",
+        description="Telegram chat for LinkedIn drafts (your DM with the bot). Falls back to "
+        "telegram_chat_id — set it to keep drafts OFF the public channel.",
+    )
+
     dedup_threshold: float = Field(default=0.90)
     cluster_threshold: float = Field(default=0.82)
     dedup_lookback_days: int = Field(default=14)
@@ -83,7 +92,7 @@ class Settings(BaseSettings):
 
     @field_validator(
         "email_port", "brevo_list_id", "telegram_min_score", "telegram_max_items",
-        "email_max_items", mode="before",
+        "email_max_items", "linkedin_min_score", mode="before",
     )
     @classmethod
     def _blank_int_to_default(cls, v, info):

@@ -45,6 +45,8 @@ jobs:
       SYNC_DATABASE_URL: ${{ secrets.SYNC_DATABASE_URL }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      # Optional: where LinkedIn breaking DRAFTS go (your DM). Falls back to the chat above.
+      LINKEDIN_DRAFT_CHAT_ID: ${{ secrets.LINKEDIN_DRAFT_CHAT_ID }}
       TRANSCRIBE_BACKEND: openai
       OPENAI_TRANSCRIBE_MODEL: gpt-4o-transcribe
       RETENTION_DAYS: "14"   # dedup only needs 14d of history; keeps Neon free tier comfortable
