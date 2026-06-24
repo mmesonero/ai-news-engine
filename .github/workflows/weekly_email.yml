@@ -18,6 +18,8 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       PUBLIC_SITE_BASE: ${{ vars.PUBLIC_SITE_BASE || 'https://mmesonero.github.io/ai-news' }}
+      # Used only to translate the LinkedIn draft to Spanish (gpt-4o-mini). Email needs no LLM.
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       # Brevo (public newsletter). If both set, the digest is sent as a Brevo campaign
       # to the list; otherwise it falls back to the SMTP vars below (private send).
       BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}

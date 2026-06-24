@@ -13,6 +13,7 @@ telegram chat — set it so drafts never land on the public channel.
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 import sys
 from datetime import datetime, timedelta, timezone
@@ -21,6 +22,7 @@ import httpx
 from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.openai_client import json_completion
 from app.config import settings
 from app.database import SessionLocal
 from app.links import detail_url
@@ -32,8 +34,40 @@ from app.notify.email_digest import _gather
 
 log = get_logger(__name__)
 
-_HASHTAGS = "#AI #ArtificialIntelligence #MachineLearning #TechNews"
+_HASHTAGS = "#IA #InteligenciaArtificial #Tecnología #Noticias"
 _MAX_WEEKLY = 5  # stories featured in the weekly post (title + short paragraph each)
+
+
+async def _translate_to_es(pairs: list[dict]) -> list[dict]:
+    """Translate [{'title','summary'}] to natural European Spanish in ONE LLM call
+    (gpt-4o-mini). Keeps company/product names, numbers and acronyms. Falls back to
+    the English input if OpenAI is unset or the call fails — never crashes the draft."""
+    if not pairs or not settings.openai_api_key:
+        return pairs
+    payload = json.dumps(
+        [{"i": i, "title": p.get("title") or "", "summary": p.get("summary") or ""} for i, p in enumerate(pairs)],
+        ensure_ascii=False,
+    )
+    system = (
+        "You translate AI-news headlines and summaries to natural, concise European "
+        "Spanish for a LinkedIn newsletter. Keep company/product names, numbers and "
+        "acronyms as-is. No commentary, no added text. Return JSON only."
+    )
+    user = (
+        'Translate each item to Spanish. Return JSON {"items":[{"i":<int>,"title":"...",'
+        '"summary":"..."}]} keeping the same "i".\nItems:\n' + payload
+    )
+    try:
+        out = await json_completion(system=system, user=user)
+        by_i = {it.get("i"): it for it in (out.get("items") or [])}
+        res = []
+        for i, p in enumerate(pairs):
+            t = by_i.get(i, {})
+            res.append({"title": t.get("title") or p.get("title"), "summary": t.get("summary") or p.get("summary")})
+        return res
+    except Exception as e:  # noqa: BLE001
+        log.warning("linkedin.translate_failed", err=str(e)[:160])
+        return pairs
 
 
 def _web() -> str:
@@ -98,33 +132,33 @@ def weekly_body(items: list[dict]) -> tuple[str, str]:
         summ = _clip(_no_dash(it.get("summary") or ""), 240)
         blocks.append(f"{_bold(title)}\n{summ}" if summ else _bold(title))
     body = (
-        f"🗞️ {_bold('This week in AI')}\n\n"
-        "The most relevant news:\n\n"
+        f"🗞️ {_bold('Esta semana en IA')}\n\n"
+        "Las noticias más relevantes:\n\n"
         + "\n\n".join(blocks)
-        + "\n\n📲 Get it every week on Telegram or by email. Link in comments 👇\n\n"
+        + "\n\n📲 Recíbelas cada semana en Telegram o por email. Enlace en comentarios 👇\n\n"
         + _HASHTAGS
     )
-    first_comment = f"Full briefing + free signup (Telegram or email): {_web()}"
+    first_comment = f"Briefing completo + alta gratis (Telegram o email): {_web()}"
     return body, first_comment
 
 
 def breaking_body(title: str, summary: str, players: list[str], url: str) -> tuple[str, str]:
     """Return (post_body, first_comment) for a single breaking story."""
     players = [p for p in (players or []) if p][:3]
-    tags = "#AI #ArtificialIntelligence " + " ".join(_hashtag(p) for p in players)
+    tags = "#IA #InteligenciaArtificial " + " ".join(_hashtag(p) for p in players)
     parts = [f"🚨 {_bold(_no_dash(title.strip()))}", ""]
     summ = _clip(_no_dash(summary))
     if summ:
         parts += [summ, ""]
     if players:
-        parts += ["Players: " + ", ".join(players), ""]
+        parts += ["Protagonistas: " + ", ".join(players), ""]
     parts += [
-        "📲 Daily AI news on Telegram or by email. Link in comments 👇",
+        "📲 Noticias de IA a diario en Telegram o por email. Enlace en comentarios 👇",
         "",
         tags.strip(),
     ]
     body = "\n".join(parts)
-    first_comment = f"Read more + free signup: {detail_url(url)}"
+    first_comment = f"Leer más + alta gratis: {detail_url(url)}"
     return body, first_comment
 
 
@@ -160,7 +194,10 @@ async def build_and_send_weekly() -> int:
     if not items:
         log.info("linkedin.weekly_no_stories")
         return 0
-    body, first_comment = weekly_body(items)
+    pairs = await _translate_to_es(
+        [{"title": it["title"], "summary": it.get("summary") or ""} for it in items[:_MAX_WEEKLY]]
+    )
+    body, first_comment = weekly_body(pairs)
     ok = await _send_to_telegram("LinkedIn draft · Weekly", body, first_comment)
     log.info("linkedin.weekly", sent=int(ok), stories=len(items))
     return 1 if ok else 0
@@ -203,9 +240,12 @@ async def build_and_send_breaking(session: AsyncSession) -> int:
         return 0
     sent = 0
     for cluster, raw, proc in rows:
+        tr = (await _translate_to_es(
+            [{"title": proc.title_es or raw.title or "(untitled)", "summary": proc.cleaned_summary or ""}]
+        ))[0]
         body, first_comment = breaking_body(
-            title=proc.title_es or raw.title or "(untitled)",
-            summary=proc.cleaned_summary or "",
+            title=tr["title"],
+            summary=tr["summary"],
             players=proc.players or [],
             url=raw.url,
         )
