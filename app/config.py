@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     email_password: str = Field(default="")
     email_from: str = Field(default="", description="From address; defaults to email_user if blank.")
     email_to: str = Field(default="", description="Comma-separated recipient list.")
-    email_max_items: int = Field(default=15, description="Hard cap for stories in the weekly digest (top 10 + extra 'alta').")
+    email_max_items: int = Field(default=15, description="Hard cap for stories in the weekly digest (top 10 + extra 'high').")
     telegram_channel_url: str = Field(
         default="https://t.me/+ImA4ksuUUbMzMzFk",
         description="Public Telegram channel invite — shown as a CTA in the email footer.",

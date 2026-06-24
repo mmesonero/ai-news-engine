@@ -347,7 +347,7 @@ async def _collect(hours: int, limit: int) -> list[dict]:
                 )
                 seen: set[str] = set()
                 for name, url, rid in mem.all():
-                    nm = name or "fuente"
+                    nm = name or "source"
                     if nm in seen:
                         continue
                     seen.add(nm)
@@ -358,7 +358,7 @@ async def _collect(hours: int, limit: int) -> list[dict]:
                 sname = (
                     await session.execute(select(Source.name).where(Source.id == raw.source_id))
                 ).scalar_one_or_none()
-                sources_list = [{"name": sname or "fuente", "url": raw.url}]
+                sources_list = [{"name": sname or "source", "url": raw.url}]
 
             items.append(
                 {
