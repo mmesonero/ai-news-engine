@@ -146,7 +146,7 @@ def weekly_body(items: list[dict]) -> tuple[str, str]:
         + "\n\n📲 Recíbelas por Telegram o email. Enlace en comentarios 👇\n\n"
         + _HASHTAGS
     )
-    first_comment = f"Briefing completo + alta gratis (Telegram o email): {_web()}"
+    first_comment = f"Briefing en Telegram o email:\n{_web()}"
     return body, first_comment
 
 
