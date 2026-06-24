@@ -60,6 +60,13 @@ class Settings(BaseSettings):
         description="Physical/postal address shown in the email footer (RGPD/LSSI for public sends).",
     )
 
+    # Public newsletter via Brevo (optional). When BOTH are set, the weekly digest is
+    # sent as a Brevo campaign to the contact list (Brevo stores subscribers securely,
+    # adds a compliant 1-click unsubscribe, manages bounces). Falls back to SMTP if unset.
+    # Sender must be a VERIFIED sender in Brevo (uses email_from / email_user).
+    brevo_api_key: str = Field(default="", description="Brevo API key (api-key header). Secret only.")
+    brevo_list_id: int = Field(default=0, description="Brevo contact-list id the campaign targets.")
+
     dedup_threshold: float = Field(default=0.90)
     cluster_threshold: float = Field(default=0.82)
     dedup_lookback_days: int = Field(default=14)

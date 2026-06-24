@@ -77,10 +77,13 @@ def _meta_line(it: dict) -> str:
     )
 
 
-def _render_email(items: list[dict]) -> str:
+def _render_email(items: list[dict], unsub_href: str | None = None) -> str:
     """Magazine-style newsletter (Spicy4Tuna structure) in our dark + gold brand:
     dark wordmark banner, gold title, this-week teaser, a featured story with hero
-    image, then the rest as a clean list. Email-safe (tables + inline styles)."""
+    image, then the rest as a clean list. Email-safe (tables + inline styles).
+
+    unsub_href: when sending via Brevo, pass "{{ unsubscribe }}" so Brevo injects its
+    compliant 1-click unsubscribe URL; SMTP path falls back to a mailto link."""
     home = _site_home()
     week = datetime.now(timezone.utc).strftime("%d %b %Y")
 
@@ -92,7 +95,7 @@ def _render_email(items: list[dict]) -> str:
         '📣 Join us on Telegram →</a></td></tr>'
     ) if tg_url else ""
     unsub_to = settings.email_from or settings.email_user or ""
-    unsub = f"mailto:{unsub_to}?subject=Unsubscribe" if unsub_to else f"{home}/ai-news/"
+    unsub = unsub_href or (f"mailto:{unsub_to}?subject=Unsubscribe" if unsub_to else f"{home}/ai-news/")
     addr = f' &nbsp;·&nbsp; {_esc(settings.email_address)}' if settings.email_address else ""
     preheader = f"{len(items)} AI stories this week — filtered, deduplicated and summarized."
 
@@ -162,19 +165,52 @@ async def _gather() -> list[dict]:
     return (items[:_MIN_STORIES] + extra_alta)[: settings.email_max_items]
 
 
-async def send_weekly_digest() -> int:
-    if not (settings.email_host and settings.email_user and settings.email_to):
-        log.info("email.not_configured")
-        return 0
-    items = await _gather()
-    if not items:
-        log.info("email.no_stories")
-        return 0
+async def _send_via_brevo(items: list[dict], subject: str) -> int:
+    """Public newsletter: create + send a Brevo campaign to the contact list.
+    Brevo stores subscribers securely, injects a compliant 1-click unsubscribe, and
+    handles bounces. Sender must be a verified sender in Brevo. Raises on API error
+    so a failed send turns the Actions run RED."""
+    import httpx
 
+    sender_email = settings.email_from or settings.email_user
+    week = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
+    html = _render_email(items, unsub_href="{{ unsubscribe }}")
+    headers = {"api-key": settings.brevo_api_key, "content-type": "application/json"}
+    async with httpx.AsyncClient(timeout=40) as client:
+        # 1) create the campaign (draft)
+        r = await client.post(
+            "https://api.brevo.com/v3/emailCampaigns",
+            headers=headers,
+            json={
+                "name": f"AI News Weekly · {week}",
+                "subject": subject,
+                "sender": {"name": "AI News", "email": sender_email},
+                "htmlContent": html,
+                "recipients": {"listIds": [settings.brevo_list_id]},
+            },
+        )
+        if r.status_code >= 300:
+            log.error("email.brevo_create_failed", status=r.status_code, body=r.text[:300])
+            r.raise_for_status()
+        campaign_id = r.json()["id"]
+        # 2) send it now
+        r2 = await client.post(
+            f"https://api.brevo.com/v3/emailCampaigns/{campaign_id}/sendNow", headers=headers
+        )
+        if r2.status_code >= 300:
+            log.error("email.brevo_send_failed", status=r2.status_code, body=r2.text[:300])
+            r2.raise_for_status()
+    log.info("email.sent", transport="brevo", campaign=campaign_id, list_id=settings.brevo_list_id, stories=len(items))
+    return len(items)
+
+
+def _send_via_smtp(items: list[dict], subject: str) -> int:
+    """Private send to a fixed recipient list (EMAIL_TO) over SMTP — for you / a few
+    people you add by hand. Raises on SMTP error so a broken send turns the run RED."""
     recipients = [r.strip() for r in settings.email_to.split(",") if r.strip()]
     sender = settings.email_from or settings.email_user
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"🗞️ AI News · {len(items)} stories this week"
+    msg["Subject"] = subject
     msg["From"] = sender
     msg["To"] = ", ".join(recipients)
     # Standard one-click/list unsubscribe (mailto) — improves deliverability.
@@ -187,13 +223,30 @@ async def send_weekly_digest() -> int:
             s.starttls()
             s.login(settings.email_user, settings.email_password)
             s.sendmail(msg["From"], recipients, msg.as_string())
-        log.info("email.sent", recipients=len(recipients), stories=len(items))
+        log.info("email.sent", transport="smtp", recipients=len(recipients), stories=len(items))
         return len(items)
     except Exception as e:
-        # Re-raise so a broken send turns the Actions run RED (visible alert),
-        # instead of silently "succeeding" with nothing delivered.
         log.error("email.failed", err=str(e)[:200])
         raise
+
+
+async def send_weekly_digest() -> int:
+    # Transport: Brevo (public list) if configured, else SMTP (private fixed list).
+    use_brevo = bool(settings.brevo_api_key and settings.brevo_list_id)
+    use_smtp = bool(settings.email_host and settings.email_user and settings.email_to)
+    if not (use_brevo or use_smtp):
+        log.info("email.not_configured")
+        return 0
+
+    items = await _gather()
+    if not items:
+        log.info("email.no_stories")
+        return 0
+
+    subject = f"🗞️ AI News · {len(items)} stories this week"
+    if use_brevo:
+        return await _send_via_brevo(items, subject)
+    return _send_via_smtp(items, subject)
 
 
 def main() -> None:
