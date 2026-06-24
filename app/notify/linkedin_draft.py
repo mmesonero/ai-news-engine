@@ -139,7 +139,7 @@ def weekly_body(items: list[dict]) -> tuple[str, str]:
         f"🗞️ {_bold('Esta semana en IA')}\n\n"
         "Las noticias más relevantes:\n\n"
         + "\n\n".join(blocks)
-        + "\n\n📲 Recíbelas cada semana en Telegram o por email. Enlace en comentarios 👇\n\n"
+        + "\n\n📲 Recíbelas por Telegram o email. Enlace en comentarios 👇\n\n"
         + _HASHTAGS
     )
     first_comment = f"Briefing completo + alta gratis (Telegram o email): {_web()}"
