@@ -61,6 +61,12 @@ def _bold(s: str) -> str:
     return "".join(out)
 
 
+def _no_dash(s: str) -> str:
+    """Replace em/en dashes (incl. surrounding spaces) with a comma — keeps the copy
+    plain and un-'AI'. Applied to titles and summaries."""
+    return re.sub(r"\s*[—–]\s*", ", ", s or "").strip()
+
+
 def _hashtag(name: str) -> str:
     h = re.sub(r"[^A-Za-z0-9]", "", name or "")
     return f"#{h}" if h else ""
@@ -86,10 +92,10 @@ def weekly_body(items: list[dict]) -> tuple[str, str]:
     each as a headline followed by a short paragraph (no bullets)."""
     blocks = []
     for it in items[:_MAX_WEEKLY]:
-        title = (it.get("title") or "").strip()
+        title = _no_dash((it.get("title") or "").strip())
         if not title:
             continue
-        summ = _clip(it.get("summary") or "", 240)
+        summ = _clip(_no_dash(it.get("summary") or ""), 240)
         blocks.append(f"{_bold(title)}\n{summ}" if summ else _bold(title))
     body = (
         f"🗞️ {_bold('This week in AI')}\n\n"
@@ -106,8 +112,8 @@ def breaking_body(title: str, summary: str, players: list[str], url: str) -> tup
     """Return (post_body, first_comment) for a single breaking story."""
     players = [p for p in (players or []) if p][:3]
     tags = "#AI #ArtificialIntelligence " + " ".join(_hashtag(p) for p in players)
-    parts = [f"🚨 {_bold(title.strip())}", ""]
-    summ = _clip(summary)
+    parts = [f"🚨 {_bold(_no_dash(title.strip()))}", ""]
+    summ = _clip(_no_dash(summary))
     if summ:
         parts += [summ, ""]
     if players:
