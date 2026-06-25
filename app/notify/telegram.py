@@ -53,6 +53,12 @@ def _boosted(score: int | None, sources: int) -> int:
     return (score or 0) + min(20, max(0, sources - 1) * 8)
 
 
+def _no_dash(s: str | None) -> str:
+    """Em/en dashes → comma so no dash shows; hyphens kept (e.g. 'GPT-4')."""
+    import re
+    return re.sub(r"\s*[—–]\s*", ", ", s or "")
+
+
 def _clip(s: str | None, n: int = 600) -> str:
     """Trim WITHOUT cutting mid-sentence: prefer last sentence end, else last word + …
     n=600 keeps the whole message under Telegram's 1024-char photo-caption limit."""
@@ -125,13 +131,13 @@ def _render_story(
                 <enlace a la web>"""
     emoji = _THEME_EMOJI.get(theme, "🌐")
     boosted = _boosted(score, sources)
-    nota = f"{boosted}/100" if score is not None else (tier or "—")
+    nota = f"{boosted}/100" if score is not None else (tier or "")
     t = _esc((title or "(untitled)")[:200])
     src = f"  ·  📡 {sources} sources" if sources > 1 else ""
     head = f"{emoji} <b>{t}</b>\n{nota}{src}"
     parts = [head]
     if summary:
-        parts.append(_esc(_clip(summary)))
+        parts.append(_esc(_clip(_no_dash(summary))))
     # Link to OUR web detail page (summary + data + source inside), not the source.
     if url:
         parts.append(f'<a href="{_esc(detail_url(url))}">Read on the web →</a>')

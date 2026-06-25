@@ -12,6 +12,7 @@ Transport is plain SMTP so it works with any provider:
 from __future__ import annotations
 
 import asyncio
+import re
 import smtplib
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
@@ -51,6 +52,12 @@ def _email_players(players: list[str] | None) -> str:
         ) if logo else ""
         out.append(f'<span style="color:{_GOLD};font-weight:700;">{img}{_esc(p)}</span>')
     return " &nbsp;·&nbsp; ".join(out)
+
+
+def _no_dash(s: str | None) -> str:
+    """Replace em/en dashes (and surrounding spaces) with a comma so no dash shows in
+    the copy. Hyphens are kept (e.g. 'GPT-4', 'state-of-the-art')."""
+    return re.sub(r"\s*[—–]\s*", ", ", s or "")
 
 
 def _clip(s: str | None, n: int = 600) -> str:
@@ -97,7 +104,7 @@ def _render_email(items: list[dict], unsub_href: str | None = None) -> str:
     unsub_to = settings.email_from or settings.email_user or ""
     unsub = unsub_href or (f"mailto:{unsub_to}?subject=Unsubscribe" if unsub_to else f"{home}/ai-news/")
     addr = f' &nbsp;·&nbsp; {_esc(settings.email_address)}' if settings.email_address else ""
-    preheader = f"{len(items)} AI stories this week — filtered, deduplicated and summarized."
+    preheader = f"{len(items)} AI news this week, filtered, deduplicated and summarized."
 
     # Uniform cards — EVERY story rendered the same way (image shown if available).
     def _card(it):
@@ -110,7 +117,7 @@ def _render_email(items: list[dict], unsub_href: str | None = None) -> str:
     <tr><td style="padding:0 0 8px;font:12px/1 Arial,sans-serif;color:{_MUTED};">{_meta_line(it)}</td></tr>
     {hero}
     <tr><td style="padding:0 0 8px;"><a href="{detail_url(it["url"])}" style="font:700 19px/1.32 Arial,sans-serif;color:{_INK};text-decoration:none;letter-spacing:-.01em;">{_esc(it["title"])}</a></td></tr>
-    <tr><td style="padding:0 0 10px;font:300 14.5px/1.6 Arial,sans-serif;color:{_MUTED};">{_esc(_clip(it["summary"]))}</td></tr>
+    <tr><td style="padding:0 0 10px;font:300 14.5px/1.6 Arial,sans-serif;color:{_MUTED};">{_esc(_clip(_no_dash(it["summary"])))}</td></tr>
     <tr><td style="font:12px/1 Arial,sans-serif;">{_email_players(it.get("players"))}<a href="{detail_url(it["url"])}" style="color:{_GOLD};font-weight:700;text-decoration:none;float:right;">Read →</a></td></tr>
     <tr><td style="padding:20px 0;"><div style="height:1px;background:#ece8dc;"></div></td></tr>"""
 
@@ -131,10 +138,10 @@ def _render_email(items: list[dict], unsub_href: str | None = None) -> str:
     </td></tr>
     <tr><td style="background:#0d0d0d;border-radius:16px;padding:30px 24px;text-align:center;">
       <div style="font:800 30px/1 Arial,sans-serif;color:#ECEAE3;letter-spacing:-.02em;">AI <span style="color:#e2ba6b;">News</span></div>
-      <div style="font:700 11px/1 Arial,sans-serif;color:#9a938a;letter-spacing:.22em;text-transform:uppercase;margin-top:10px;">Weekly digest · {len(items)} stories</div>
+      <div style="font:700 11px/1 Arial,sans-serif;color:#9a938a;letter-spacing:.22em;text-transform:uppercase;margin-top:10px;">Weekly digest · {len(items)} news</div>
     </td></tr>
     <tr><td style="padding:24px 0 4px;font:700 22px/1.25 Arial,sans-serif;color:{_INK};letter-spacing:-.01em;">This week in AI 🗞️</td></tr>
-    <tr><td style="padding:0 0 18px;font:300 15px/1.6 Arial,sans-serif;color:{_MUTED};">{len(items)} stories — filtered, deduplicated and summarized.</td></tr>
+    <tr><td style="padding:0 0 18px;font:300 15px/1.6 Arial,sans-serif;color:{_MUTED};">{len(items)} news, filtered, deduplicated and summarized.</td></tr>
     <tr><td style="padding:0 0 22px;"><div style="height:2px;background:{_GOLD};width:48px;"></div></td></tr>
     {cards}{empty}
     <tr><td style="padding:28px 0 0;text-align:center;">
@@ -142,7 +149,7 @@ def _render_email(items: list[dict], unsub_href: str | None = None) -> str:
     </td></tr>
     {tg_cta}
     <tr><td style="padding:22px 0 0;text-align:center;font:12px/1.6 Arial,sans-serif;color:{_SOFT};">
-      Curated &amp; deduplicated with AI · the score (0–100) is editorial relevance<br>
+      Curated &amp; deduplicated with AI · the score (0 to 100) is editorial relevance<br>
       <a href="{home}/" style="color:{_GOLD};text-decoration:none;">Manuel Mesonero</a> · AI News{addr}<br>
       Weekly · every Sunday · <a href="{unsub}" style="color:{_SOFT};text-decoration:underline;">Unsubscribe</a>
     </td></tr>
@@ -243,7 +250,7 @@ async def send_weekly_digest() -> int:
         log.info("email.no_stories")
         return 0
 
-    subject = f"🗞️ AI News · {len(items)} stories this week"
+    subject = f"🗞️ AI News · {len(items)} news this week"
     if use_brevo:
         return await _send_via_brevo(items, subject)
     return _send_via_smtp(items, subject)
