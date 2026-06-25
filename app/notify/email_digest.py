@@ -116,7 +116,7 @@ def _render_email(items: list[dict], unsub_href: str | None = None) -> str:
         return f"""
     <tr><td style="padding:0 0 8px;font:12px/1 Arial,sans-serif;color:{_MUTED};">{_meta_line(it)}</td></tr>
     {hero}
-    <tr><td style="padding:0 0 8px;"><a href="{detail_url(it["url"])}" style="font:700 19px/1.32 Arial,sans-serif;color:{_INK};text-decoration:none;letter-spacing:-.01em;">{_esc(it["title"])}</a></td></tr>
+    <tr><td style="padding:0 0 8px;"><a href="{detail_url(it["url"])}" style="font:700 19px/1.32 Arial,sans-serif;color:{_INK};text-decoration:none;letter-spacing:-.01em;">{_esc(_no_dash(it["title"]))}</a></td></tr>
     <tr><td style="padding:0 0 10px;font:300 14.5px/1.6 Arial,sans-serif;color:{_MUTED};">{_esc(_clip(_no_dash(it["summary"])))}</td></tr>
     <tr><td style="font:12px/1 Arial,sans-serif;">{_email_players(it.get("players"))}<a href="{detail_url(it["url"])}" style="color:{_GOLD};font-weight:700;text-decoration:none;float:right;">Read →</a></td></tr>
     <tr><td style="padding:20px 0;"><div style="height:1px;background:#ece8dc;"></div></td></tr>"""

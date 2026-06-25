@@ -132,7 +132,7 @@ def _render_story(
     emoji = _THEME_EMOJI.get(theme, "🌐")
     boosted = _boosted(score, sources)
     nota = f"{boosted}/100" if score is not None else (tier or "")
-    t = _esc((title or "(untitled)")[:200])
+    t = _esc(_no_dash(title or "(untitled)")[:200])
     src = f"  ·  📡 {sources} sources" if sources > 1 else ""
     head = f"{emoji} <b>{t}</b>\n{nota}{src}"
     parts = [head]
