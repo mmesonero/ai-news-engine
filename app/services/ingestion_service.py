@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ingestion import get_ingestor
 from app.ingestion.topic_filter import is_promo, matches_topic
+from app.ingestion.youtube import reset_whisper_budget
 from app.logging_config import get_logger
 from app.models.raw_content import RawContent
 from app.models.source import Source
@@ -40,6 +41,7 @@ class IngestionService:
         self.source_repo = SourceRepository(session)
 
     async def ingest_all_active(self) -> list[RawContent]:
+        reset_whisper_budget()  # per-RUN transcription cap, shared across YouTube sources
         sources = await self.source_repo.list_active()
         log.info("ingest.start", sources=len(sources))
         new_rows: list[RawContent] = []

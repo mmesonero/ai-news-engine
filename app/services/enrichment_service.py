@@ -154,6 +154,9 @@ class EnrichmentService:
             .join(ClusterItem, ClusterItem.raw_content_id == RawContent.id)
             .outerjoin(ProcessedContent, ProcessedContent.raw_content_id == RawContent.id)
             .where(ClusterItem.cluster_id == cluster_id)
+            # Never promote a pruned member (raw_text blanked) to representative —
+            # enrichment would then run on an empty body. Mirrors cluster_merger.
+            .where(RawContent.embedding_pruned.is_(False))
         )
         res = await self.session.execute(stmt)
         rows = res.all()

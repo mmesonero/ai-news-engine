@@ -29,12 +29,16 @@ class ClusterRepository:
         return item
 
     async def cluster_for(self, raw_content_id: int) -> ContentCluster | None:
+        # .first() (not scalar_one_or_none) so a transient double-membership — the
+        # invariant is app-enforced, not a DB UNIQUE — degrades gracefully instead
+        # of raising MultipleResultsFound and aborting the dedup loop.
         res = await self.session.execute(
             select(ContentCluster)
             .join(ClusterItem, ClusterItem.cluster_id == ContentCluster.id)
             .where(ClusterItem.raw_content_id == raw_content_id)
+            .limit(1)
         )
-        return res.scalar_one_or_none()
+        return res.scalars().first()
 
     async def list_with_counts(self, limit: int = 50) -> list[tuple[ContentCluster, int]]:
         count_col = func.count(ClusterItem.raw_content_id).label("member_count")

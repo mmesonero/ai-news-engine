@@ -19,7 +19,20 @@ _session_factory: async_sessionmaker[AsyncSession] | None = None
 def get_engine() -> AsyncEngine:
     global _engine
     if _engine is None:
-        _engine = create_async_engine(settings.database_url, pool_pre_ping=True, future=True)
+        connect_args: dict = {}
+        if "asyncpg" in settings.database_url:
+            # Disable asyncpg's prepared-statement cache so the app also works on Neon's
+            # pooled (PgBouncer transaction-mode) endpoint, which otherwise errors with
+            # 'prepared statement "__asyncpg_stmt__" does not exist'. Negligible cost at
+            # this QPS and harmless on the direct endpoint.
+            connect_args["statement_cache_size"] = 0
+        _engine = create_async_engine(
+            settings.database_url,
+            pool_pre_ping=True,
+            pool_recycle=300,  # recycle before Neon's idle timeout silently drops the socket
+            future=True,
+            connect_args=connect_args,
+        )
     return _engine
 
 

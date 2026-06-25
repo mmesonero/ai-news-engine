@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.embedding import Embedding
@@ -45,5 +45,10 @@ class EmbeddingRepository:
         if exclude_id is not None:
             stmt = stmt.where(Embedding.raw_content_id != exclude_id)
         stmt = stmt.order_by(distance).limit(limit)
+        # ivfflat defaults to probes=1 (scans only ~1/lists of the vectors), so real
+        # near-duplicates can fall outside the probed lists and be missed. Widen the
+        # search for this query (SET LOCAL → resets at transaction end). No-op if the
+        # planner uses an exact scan or the index isn't ivfflat.
+        await self.session.execute(text("SET LOCAL ivfflat.probes = 10"))
         res = await self.session.execute(stmt)
         return [(row[0], 1.0 - float(row[1])) for row in res.all()]

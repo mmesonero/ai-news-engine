@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from time import mktime
 
 import feedparser
@@ -48,6 +48,7 @@ from app.ingestion.video_filter import cheap_pre_filter, gpt_worth_transcribing
 from app.logging_config import get_logger
 from app.models.source import Source
 from app.schemas.news import RawContentDraft
+from app.url_safety import is_public_url
 
 log = get_logger(__name__)
 
@@ -58,6 +59,16 @@ _USER_AGENT = "Mozilla/5.0 (compatible; AINewsEngine/0.1)"
 
 _UC_RE = re.compile(r'"externalId":"(UC[a-zA-Z0-9_-]{22})"')
 _UC_CHANNEL_LINK_RE = re.compile(r'channel/(UC[a-zA-Z0-9_-]{22})')
+
+# Whisper transcription budget shared across ALL YouTube sources in ONE pipeline run
+# (reset once per run by IngestionService.ingest_all_active). Module-scoped so the cap
+# is per-RUN, not per-source — previously each of N sources got the full budget,
+# multiplying OpenAI transcription spend by N.
+_whisper_budget: dict[str, int | None] = {"remaining": None}
+
+
+def reset_whisper_budget() -> None:
+    _whisper_budget["remaining"] = settings.whisper_max_per_run
 
 
 class YoutubeIngestor:
@@ -74,7 +85,8 @@ class YoutubeIngestor:
         videos = await asyncio.to_thread(self._list_recent_via_rss, channel_id, max_results)
         drafts: list[RawContentDraft] = []
         ip_blocked = False
-        whisper_calls_remaining = settings.whisper_max_per_run
+        if _whisper_budget["remaining"] is None:  # safety net if reset wasn't called
+            _whisper_budget["remaining"] = settings.whisper_max_per_run
         for v in videos:
             video_url = f"https://www.youtube.com/watch?v={v['id']}"
 
@@ -113,18 +125,18 @@ class YoutubeIngestor:
             # Fallback 2 (free, autonomous): yt-dlp audio (android client) +
             # local faster-whisper. Slow on CPU but bypasses YouTube blocks.
             # Capped per run to prevent CPU runaway.
-            if transcript is None and whisper_calls_remaining > 0:
+            if transcript is None and _whisper_budget["remaining"] > 0:
                 transcript = await asyncio.to_thread(
                     fetch_transcript_via_whisper, v["id"], lang
                 )
-                whisper_calls_remaining -= 1
+                _whisper_budget["remaining"] -= 1
                 if transcript:
                     log.info(
                         "youtube.transcript_via_whisper",
-                        video=v["id"], remaining=whisper_calls_remaining,
+                        video=v["id"], remaining=_whisper_budget["remaining"],
                     )
                     ip_blocked = False
-            elif transcript is None and whisper_calls_remaining == 0:
+            elif transcript is None and _whisper_budget["remaining"] == 0:
                 log.info("youtube.whisper_cap_hit", video=v["id"])
             if not transcript:
                 if ip_blocked:
@@ -174,6 +186,8 @@ class YoutubeIngestor:
     def _resolve_handle_via_html(handle: str) -> str | None:
         """Fetch the @handle page and scrape the canonical UC channel id."""
         url = f"https://www.youtube.com/@{handle}"
+        if not is_public_url(url):  # SSRF guard (host is fixed, but validate defensively)
+            return None
         try:
             r = httpx.get(
                 url,
@@ -204,7 +218,13 @@ class YoutubeIngestor:
         """Public per-channel Atom feed. Returns up to `max_results` recent uploads.
         YouTube Shorts are filtered out at this layer (URL contains /shorts/)."""
         feed_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
-        feed = feedparser.parse(feed_url)
+        try:
+            r = httpx.get(feed_url, timeout=20, headers={"User-Agent": _USER_AGENT})
+            r.raise_for_status()
+        except Exception as e:  # noqa: BLE001 — one dead feed must not stall the run
+            log.warning("youtube.feed_fetch_failed", channel_id=channel_id, err=str(e))
+            return []
+        feed = feedparser.parse(r.content)
         out: list[dict] = []
         for entry in feed.entries:
             link = entry.get("link", "")
@@ -216,7 +236,7 @@ class YoutubeIngestor:
             published: datetime | None = None
             tup = entry.get("published_parsed") or entry.get("updated_parsed")
             if tup:
-                published = datetime.fromtimestamp(mktime(tup))
+                published = datetime.fromtimestamp(mktime(tup), tz=timezone.utc)
             out.append(
                 {
                     "id": video_id,

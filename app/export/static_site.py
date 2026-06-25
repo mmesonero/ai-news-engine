@@ -22,6 +22,7 @@ from app.api.v1.briefing import THEME_LABEL, THEME_ORDER
 from app.config import settings
 from app.database import SessionLocal
 from app.links import detail_path, story_slug
+from app.url_safety import safe_href
 
 
 def _site_home() -> str:
@@ -329,24 +330,47 @@ async def _collect(hours: int, limit: int) -> list[dict]:
     items: list[dict] = []
     async with SessionLocal() as session:
         rows = (await session.execute(stmt)).all()
+
+        # Batch what used to be 2 queries PER row (N+1 → a constant 3 queries):
+        # 1) representative id -> its cluster id
+        rep_ids = [raw.id for raw, *_ in rows]
+        cid_by_rep: dict[int, int] = {}
+        if rep_ids:
+            cid_rows = await session.execute(
+                select(ClusterItem.raw_content_id, ClusterItem.cluster_id).where(
+                    ClusterItem.raw_content_id.in_(rep_ids)
+                )
+            )
+            cid_by_rep = {rid: cid for rid, cid in cid_rows.all()}
+        # 2) cluster id -> all member (name, url, raw_id) rows, in one query
+        cids = list({c for c in cid_by_rep.values()})
+        members_by_cid: dict[int, list[tuple]] = {}
+        if cids:
+            mem_rows = await session.execute(
+                select(ClusterItem.cluster_id, Source.name, RawContent.url, RawContent.id)
+                .join(RawContent, RawContent.id == ClusterItem.raw_content_id)
+                .join(Source, Source.id == RawContent.source_id)
+                .where(ClusterItem.cluster_id.in_(cids))
+            )
+            for cid_, name, url, rid in mem_rows.all():
+                members_by_cid.setdefault(cid_, []).append((name, url, rid))
+        # 3) fallback source names for rows that aren't clustered, in one query
+        fallback_ids = [raw.source_id for raw, *_ in rows if cid_by_rep.get(raw.id) is None]
+        src_name_by_id: dict[int, str] = {}
+        if fallback_ids:
+            sn_rows = await session.execute(
+                select(Source.id, Source.name).where(Source.id.in_(fallback_ids))
+            )
+            src_name_by_id = {sid: nm for sid, nm in sn_rows.all()}
+
         for raw, proc, src_count, _rank, boost in rows:
             when = raw.published_at or raw.fetched_at
             # Gather EVERY outlet that covered this story (one chip per source).
-            cid = (
-                await session.execute(
-                    select(ClusterItem.cluster_id).where(ClusterItem.raw_content_id == raw.id)
-                )
-            ).scalar_one_or_none()
+            cid = cid_by_rep.get(raw.id)
             sources_list: list[dict] = []
             if cid is not None:
-                mem = await session.execute(
-                    select(Source.name, RawContent.url, RawContent.id)
-                    .join(ClusterItem, ClusterItem.raw_content_id == RawContent.id)
-                    .join(Source, Source.id == RawContent.source_id)
-                    .where(ClusterItem.cluster_id == cid)
-                )
                 seen: set[str] = set()
-                for name, url, rid in mem.all():
+                for name, url, rid in members_by_cid.get(cid, []):
                     nm = name or "source"
                     if nm in seen:
                         continue
@@ -355,9 +379,7 @@ async def _collect(hours: int, limit: int) -> list[dict]:
                     entry = {"name": nm, "url": url}
                     (sources_list.insert(0, entry) if rid == raw.id else sources_list.append(entry))
             if not sources_list:
-                sname = (
-                    await session.execute(select(Source.name).where(Source.id == raw.source_id))
-                ).scalar_one_or_none()
+                sname = src_name_by_id.get(raw.source_id)
                 sources_list = [{"name": sname or "source", "url": raw.url}]
 
             items.append(
@@ -413,10 +435,10 @@ def _render(items: list[dict]) -> str:
         date_attr = it["published_at"].strftime("%Y%m%d") if it["published_at"] else "0"
         title = _esc(it["title"] or "(untitled)")
         # Link to OUR detail subpage (not the source). Source link lives inside it.
-        link = f'<a href="{_esc(detail_path(it["url"]))}">{title}</a>'
+        link = f'<a href="{_esc(safe_href(detail_path(it["url"])))}">{title}</a>'
         summary = f'<p class="sum">{_esc(it["summary"])}</p>' if it["summary"] else ""
         cards.append(
-            f'<article class="card" data-theme="{theme}" data-rel="{it["relevance"]}" '
+            f'<article class="card" data-theme="{_esc(theme)}" data-rel="{it["relevance"]}" '
             f'data-date="{date_attr}" data-ts="{it["ts"]}" data-tier="{it["tier"]}" '
             f'data-players="{_esc("|".join(it.get("players") or []))}">'
             f'<div class="meta"><span class="tag">{emoji} {label}</span>'
@@ -521,7 +543,7 @@ def _render_detail(it: dict) -> str:
         if n_src > 1 else ""
     )
     src_chips = "".join(
-        f'<a class="source-chip" href="{_esc(s["url"])}" target="_blank" rel="noopener">↗ {_esc(s["name"])}</a>'
+        f'<a class="source-chip" href="{_esc(safe_href(s["url"]))}" target="_blank" rel="noopener">↗ {_esc(s["name"])}</a>'
         for s in (it.get("sources_list") or []) if s.get("url")
     )
     source = (
@@ -529,8 +551,9 @@ def _render_detail(it: dict) -> str:
         f'<div class="sources-row">{src_chips}</div>'
     ) if src_chips else ""
     img = it.get("image_url")
-    hero = f'<img class="hero" src="{_esc(img)}" alt="" loading="lazy">' if img else ""
-    og_image = f'<meta property="og:image" content="{_esc(img)}">' if img else ""
+    safe_img = safe_href(img) if img else ""
+    hero = f'<img class="hero" src="{_esc(safe_img)}" alt="" loading="lazy">' if img else ""
+    og_image = f'<meta property="og:image" content="{_esc(safe_img)}">' if img else ""
     return f"""<!DOCTYPE html>
 <html lang="es"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">

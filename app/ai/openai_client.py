@@ -23,7 +23,10 @@ _client: AsyncOpenAI | None = None
 def get_client() -> AsyncOpenAI:
     global _client
     if _client is None:
-        _client = AsyncOpenAI(api_key=settings.openai_api_key)
+        # Explicit per-request timeout well under the 30-min Actions job budget;
+        # max_retries=0 so the tenacity @retry below is the single retry layer
+        # (the SDK default of 2 would otherwise double every retry).
+        _client = AsyncOpenAI(api_key=settings.openai_api_key, timeout=60.0, max_retries=0)
     return _client
 
 
@@ -63,11 +66,15 @@ async def json_completion(
     user: str,
     model: str | None = None,
     temperature: float = 0.2,
+    max_tokens: int = 2000,
 ) -> dict[str, Any]:
     client = get_client()
     res = await client.chat.completions.create(
         model=model or settings.openai_llm_model,
         temperature=temperature,
+        # Bounds worst-case output cost / caps an injection that tries to make the
+        # model run long. 2000 is well above any real payload (enrich summary ≈ 300).
+        max_tokens=max_tokens,
         response_format={"type": "json_object"},
         messages=[
             {"role": "system", "content": system},

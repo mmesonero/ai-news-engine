@@ -31,8 +31,19 @@ PLAYER_ALIASES: dict[str, list[str]] = {
 }
 
 # Pre-compile word-boundary patterns per alias (alias may contain spaces/hyphens).
+# Leading boundary always; trailing boundary ONLY when the alias ends in an
+# alphanumeric char. Aliases that already encode their right edge with a trailing
+# space/hyphen/punct ("gpt-", "gpt ", "meta ", " fair ") must keep matching the
+# following token (e.g. "gpt-" → "gpt-4"), so they get no extra trailing boundary.
+# Without the trailing boundary, prefix collisions produced false tags
+# ("coherent"→Cohere, "applesauce"→Apple, "grokking"→xAI, "codexample"→OpenAI).
+def _compile_alias(alias: str) -> re.Pattern:
+    trailing = r"(?![a-z0-9])" if alias[-1:].isalnum() else r""
+    return re.compile(r"(?<![a-z0-9])" + re.escape(alias) + trailing, re.IGNORECASE)
+
+
 _COMPILED: dict[str, list[re.Pattern]] = {
-    player: [re.compile(r"(?<![a-z0-9])" + re.escape(a) + r"", re.IGNORECASE) for a in aliases]
+    player: [_compile_alias(a) for a in aliases]
     for player, aliases in PLAYER_ALIASES.items()
 }
 

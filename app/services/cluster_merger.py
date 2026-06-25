@@ -204,23 +204,37 @@ class ClusterMergerService:
             if tags:
                 reps.append((int(cid), int(rep_id), tags))
 
+        # A qualifying pair needs >=1 SPECIFIC (non-stoplist) shared tag, so index reps
+        # by their specific tags and only compare pairs that co-occur in at least one —
+        # provably the same candidate set as the all-pairs scan, but near-linear instead
+        # of O(n^2) and immune to a ubiquitous generic tag blowing it up.
+        by_tag: dict[str, list[int]] = {}
+        for idx, (_cid, _raw, tags) in enumerate(reps):
+            for t in (tags - TAG_STOPLIST):
+                by_tag.setdefault(t, []).append(idx)
+        candidate_pairs: set[tuple[int, int]] = set()
+        for idxs in by_tag.values():
+            for a_i in range(len(idxs)):
+                for b_i in range(a_i + 1, len(idxs)):
+                    i, j = idxs[a_i], idxs[b_i]
+                    candidate_pairs.add((i, j) if i < j else (j, i))
+
         scored: list[tuple] = []
-        for i in range(len(reps)):
+        for i, j in candidate_pairs:
             cid_a, raw_a, tags_a = reps[i]
-            for j in range(i + 1, len(reps)):
-                cid_b, raw_b, tags_b = reps[j]
-                shared = tags_a & tags_b
-                if len(shared) < 2:
-                    continue
-                specific = shared - TAG_STOPLIST
-                if not specific:
-                    continue
-                # score: specific entities weigh more than generic shared tags.
-                score = len(specific) * 2 + len(shared)
-                a, b = (cid_a, raw_a), (cid_b, raw_b)
-                if cid_a > cid_b:  # normalize a<b to match redirect expectations
-                    a, b = (cid_b, raw_b), (cid_a, raw_a)
-                scored.append((a[0], b[0], float(score), a[1], b[1]))
+            cid_b, raw_b, tags_b = reps[j]
+            shared = tags_a & tags_b
+            if len(shared) < 2:
+                continue
+            specific = shared - TAG_STOPLIST
+            if not specific:
+                continue
+            # score: specific entities weigh more than generic shared tags.
+            score = len(specific) * 2 + len(shared)
+            a, b = (cid_a, raw_a), (cid_b, raw_b)
+            if cid_a > cid_b:  # normalize a<b to match redirect expectations
+                a, b = (cid_b, raw_b), (cid_a, raw_a)
+            scored.append((a[0], b[0], float(score), a[1], b[1]))
         scored.sort(key=lambda t: t[2], reverse=True)
         return scored[:limit]
 
