@@ -136,7 +136,7 @@ See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the why behind each layer and [`S
 - The pipeline is idempotent — re-running is safe; each stage keys off dependent-row presence.
 - Per-source failures never abort a run.
 - Duplicates are rewarded, not discarded: a repeated story keeps a higher boosted score and a source counter, and its Telegram post is edited live as more outlets cover it.
-- Retention is **archive-friendly**: past `RETENTION_DAYS` (14) only the *heavy* data (embedding + body text, needed just for dedup/enrichment) is blanked — the row + summary/title/theme/players + cluster are kept **forever**, so the site is a permanent archive at ~1KB/story. The web bakes 90 days client-side.
+- Retention is **archive-friendly**: past `RETENTION_DAYS` (30 by default; 14 in cloud) only the *heavy* data (embedding + body text, needed just for dedup/enrichment) is blanked — the row + summary/title/theme/players + cluster are kept **forever**, so the site is a permanent archive at ~1KB/story. The web bakes 90 days client-side.
 
 ---
 

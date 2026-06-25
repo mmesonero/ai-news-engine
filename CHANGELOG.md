@@ -70,7 +70,7 @@ it to a Telegram channel and a static web page, with no dependency on a PC.
 - **Player tagging** (`ai/players.py`): keyword match over title + key_topics only (never the summary) to avoid false tags.
 - **Images** (`ingestion/image_extract.py`): og:image / twitter:image / YouTube thumb for hero + Telegram photo + og:image.
 - **OpenAI transcription** (`gpt-4o-transcribe`) for videos without subtitles; local Whisper removed.
-- **Retention** (`pipeline/retention.py`): prune raw_content older than `RETENTION_DAYS` (14 in cloud); web bakes 30 days.
+- **Retention** (`pipeline/retention.py`): prune raw_content older than `RETENTION_DAYS` (30 by default; 14 in cloud); web bakes 90 days.
 - Migrations 0002–0009 (theme, importance_tier, players, title_es, image_url, embedding_pruned, telegram delivery state, representative index).
 
 ### Changed
@@ -82,7 +82,7 @@ it to a Telegram channel and a static web page, with no dependency on a PC.
 - Local Whisper transcription backend.
 
 ### Deprecated
-- LinkedIn-angle generation and `linkedin_*` / `novelty_score` / `business_impact_score` / `ai_generated_insights` columns (kept for migration compatibility, unused). `/trending` and `/linkedin-ideas` are legacy.
+- `novelty_score` and `business_impact_score` columns: computed but unused by business logic (kept for migration compatibility). NOTE: `linkedin_potential_score`, `linkedin_angles` and `ai_generated_insights` are NOT unused — they are still read by `/weekly-top` and `/linkedin-ideas` and serialized via `ProcessedRead`. `/trending` and `/linkedin-ideas` are legacy endpoints.
 
 ## [0.2.0] — 2026-05-30
 

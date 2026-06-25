@@ -148,7 +148,7 @@ Constraints: `UNIQUE (source_id, external_id)`, `UNIQUE (url)`, index on `conten
 - `key_topics` — normalized tags.
 - `is_noise` — gating flag; noise short-circuits enrichment + delivery.
 - `rejected_reason` — nullable.
-- **Legacy / deprecated** (kept for migration compatibility, unused): `novelty_score`, `linkedin_potential_score`, `business_impact_score`, `ai_generated_insights`, `linkedin_angles`.
+- **Legacy / partially used** (kept for migration compatibility): `novelty_score` and `business_impact_score` are LLM-computed and serialized but not consumed by any business logic. `linkedin_potential_score`, `linkedin_angles` and `ai_generated_insights` are **still in use** — read by `/weekly-top` and `/linkedin-ideas` and serialized via `ProcessedRead` — so do NOT drop them without removing their consumers first.
 
 ### 5.4 `content_clusters`
 `cluster_topic`, `representative_content_id` FK (canonical item), plus delivery state:
@@ -271,7 +271,7 @@ Copy-paste, **no LinkedIn API**: the engine writes the post and sends it to Tele
 | `RETENTION_DAYS` | `30` (cloud: `14`) | prune raw_content older than this |
 | `PUBLIC_SITE_BASE` | `https://mmesonero.github.io/ai-news` | detail-page link base |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | — | delivery (secrets) |
-| `TELEGRAM_MIN_SCORE` | `85` | only push stories with boosted score ≥ this (set to 65 in cloud) |
+| `TELEGRAM_MIN_SCORE` | `65` | only push stories with boosted score ≥ this |
 | `BREVO_API_KEY` / `BREVO_LIST_ID` | — | email newsletter as a Brevo campaign to the list |
 | `EMAIL_FROM` | — | verified sender; SMTP fallback also uses `EMAIL_HOST`/`USER`/`PASSWORD`/`PORT`/`TO` |
 | `EMAIL_MAX_ITEMS` | `15` | hard cap on stories in the weekly digest |

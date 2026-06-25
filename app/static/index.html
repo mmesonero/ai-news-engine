@@ -346,7 +346,7 @@ async function loadLinkedin() {
     const hooks = (i.angles?.hooks ?? []).slice(0, 2).map(h => `<li>${esc(h)}</li>`).join('');
     return `
       <div class="card">
-        <h3><a href="${i.source.url}" target="_blank" rel="noopener">${esc(i.source.title)}</a></h3>
+        <h3><a href="${esc(safeHref(i.source.url))}" target="_blank" rel="noopener">${esc(i.source.title)}</a></h3>
         <div class="meta">
           <span class="pill score">score ${i.linkedin_potential_score}</span>
           ${sourcePill(i.source.source_id)}
@@ -374,7 +374,7 @@ async function loadWeeklyTop() {
     const ds = t.distinct_sources || 1;
     return `
       <div class="card">
-        <h3><a href="${rep?.url ?? '#'}" target="_blank" rel="noopener">${esc(t.cluster_topic || rep?.title || 'Sin tema')}</a></h3>
+        <h3><a href="${esc(safeHref(rep?.url))}" target="_blank" rel="noopener">${esc(t.cluster_topic || rep?.title || 'Sin tema')}</a></h3>
         <div class="meta">
           ${isBoosted
             ? `<span class="pill boosted" title="${t.importance_score} base + ${t.boosted_score - t.importance_score} boost cross-source">imp ${t.boosted_score} ★</span>`
@@ -409,7 +409,7 @@ async function loadTrending() {
     const rep = t.representative;
     return `
       <div class="card">
-        <h3><a href="${rep?.url ?? '#'}" target="_blank" rel="noopener">${esc(t.cluster_topic || rep?.title || 'Sin tema')}</a></h3>
+        <h3><a href="${esc(safeHref(rep?.url))}" target="_blank" rel="noopener">${esc(t.cluster_topic || rep?.title || 'Sin tema')}</a></h3>
         <div class="meta">
           ${t.importance_score != null ? `<span class="pill score">importancia ${t.importance_score}</span>` : ''}
           <span class="pill">${t.member_count} ${t.member_count === 1 ? 'noticia' : 'noticias'}</span>
@@ -422,6 +422,8 @@ async function loadTrending() {
 }
 
 function esc(s) { return (s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+// Only allow http(s) links in href; anything else (javascript:, data:, …) -> '#'.
+function safeHref(u) { const s = (u ?? '').trim(); return /^https?:\/\//i.test(s) ? s : '#'; }
 function domainOf(url) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } }
 
 async function refreshAll() {

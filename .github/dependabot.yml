@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # Python deps: surface vulnerable/outdated packages as PRs (the repo has no
+  # lockfile, so this is the automated review channel for the open >= ranges).
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # GitHub Actions: proposes SHA-pin bumps for actions/checkout, setup-python, etc.,
+  # mitigating the mutable-tag (@v4/@v5) supply-chain risk.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
