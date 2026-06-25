@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 from app.logging_config import get_logger
 from app.models.source import Source
 from app.schemas.news import RawContentDraft
+from app.url_safety import safe_get
 
 log = get_logger(__name__)
 
@@ -34,8 +35,9 @@ class HtmlIngestor:
             log.warning("html.missing_selectors", source=source.name)
             return []
 
-        async with httpx.AsyncClient(follow_redirects=True, timeout=20) as client:
-            index = await client.get(source.url)
+        async with httpx.AsyncClient(timeout=20) as client:
+            # safe_get validates the URL + each redirect hop is a public host (SSRF guard).
+            index = await safe_get(client, source.url)
             index.raise_for_status()
             soup = BeautifulSoup(index.text, "lxml")
             links = []
@@ -50,7 +52,7 @@ class HtmlIngestor:
             drafts: list[RawContentDraft] = []
             for href in links:
                 try:
-                    page = await client.get(href)
+                    page = await safe_get(client, href)
                     page.raise_for_status()
                     page_soup = BeautifulSoup(page.text, "lxml")
                     title_node = page_soup.select_one(title_sel)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from functools import lru_cache
 
 from pydantic import Field, field_validator
@@ -11,8 +12,13 @@ class Settings(BaseSettings):
 
     app_env: str = Field(default="dev")
     log_level: str = Field(default="INFO")
-    # Set false for a read-only viewer (don't start the cron pipeline in-process).
-    enable_scheduler: bool = Field(default=True)
+    # Opt-in only: serving the FastAPI app does NOT start the in-process cron unless
+    # this is true. The cloud runs the pipeline via GitHub Actions + direct module
+    # calls, so this stays false and a local `uvicorn` never fires a real pipeline.
+    enable_scheduler: bool = Field(default=False)
+    # If set, the /admin/* endpoints require header `X-Admin-Token: <this>`. Unset
+    # (default) keeps them open for local dev — they aren't served in the cloud.
+    admin_token: str = Field(default="")
 
     database_url: str = Field(
         default="postgresql+asyncpg://ai:ai@localhost:5432/ai_news",
@@ -92,13 +98,19 @@ class Settings(BaseSettings):
 
     @field_validator(
         "email_port", "brevo_list_id", "telegram_min_score", "telegram_max_items",
-        "email_max_items", "linkedin_min_score", mode="before",
+        "email_max_items", "linkedin_min_score", "whisper_max_per_run", mode="before",
     )
     @classmethod
     def _blank_int_to_default(cls, v, info):
         """An unset GitHub secret is injected as an empty string. Don't let that crash
-        int parsing — fall back to the field's declared default."""
-        if v is None or (isinstance(v, str) and v.strip() == ""):
+        int parsing — fall back to the field's declared default. A set-but-blank value
+        is logged (distinct from unset) so a mis-set secret isn't silently swallowed."""
+        if v is None:
+            return cls.model_fields[info.field_name].default
+        if isinstance(v, str) and v.strip() == "":
+            logging.getLogger(__name__).warning(
+                "config.blank_value_substituted field=%s (using default)", info.field_name
+            )
             return cls.model_fields[info.field_name].default
         return v
 

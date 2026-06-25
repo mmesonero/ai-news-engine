@@ -15,6 +15,7 @@ from app.logging_config import get_logger
 from app.models.cluster import ContentCluster
 from app.models.processed_content import ProcessedContent
 from app.models.raw_content import RawContent
+from app.url_safety import is_public_url, safe_get
 
 log = get_logger(__name__)
 
@@ -55,13 +56,15 @@ async def _image_for(client: httpx.AsyncClient, url: str) -> str | None:
     if yt:
         return yt
     try:
-        r = await client.get(url, headers={"User-Agent": _UA}, follow_redirects=True, timeout=10)
+        r = await safe_get(client, url, headers={"User-Agent": _UA}, timeout=10)
         if r.status_code != 200 or "text/html" not in r.headers.get("content-type", ""):
             return None
         html = r.text[:200000]
         m = _OG.search(html) or _OG_REV.search(html)
         if m:
-            return urljoin(str(r.url), m.group(1).strip())
+            candidate = urljoin(str(r.url), m.group(1).strip())
+            # Only store a public http(s) image URL — never a data:/internal target.
+            return candidate if is_public_url(candidate) else None
     except Exception as e:
         log.info("image.fetch_failed", url=url[:80], err=str(e)[:120])
     return None
@@ -83,7 +86,7 @@ async def backfill_images(session: AsyncSession, limit: int = 40) -> int:
     if not raws:
         return 0
     found = 0
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=10) as client:
         for raw in raws:
             img = await _image_for(client, raw.url)
             if img:

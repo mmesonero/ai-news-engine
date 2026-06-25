@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import db_session
+from app.database import SessionLocal
+from app.logging_config import get_logger
 from app.models.cluster import ClusterItem, ContentCluster
 from app.models.processed_content import ProcessedContent
 from app.models.raw_content import RawContent
@@ -14,6 +16,7 @@ from app.schemas.news import NewsItem, NewsList, ProcessedRead
 from app.services.enrichment_service import EnrichmentService
 
 router = APIRouter()
+log = get_logger(__name__)
 
 
 def _to_news_item(
@@ -91,7 +94,9 @@ async def get_news(raw_id: int, session: AsyncSession = Depends(db_session)) -> 
 
 
 @router.post("/reprocess/{raw_id}", status_code=202)
-async def reprocess(raw_id: int, session: AsyncSession = Depends(db_session)) -> dict[str, str]:
+async def reprocess(
+    raw_id: int, background: BackgroundTasks, session: AsyncSession = Depends(db_session)
+) -> dict[str, str]:
     raw = await session.get(RawContent, raw_id)
     if raw is None:
         raise HTTPException(status_code=404, detail="not found")
@@ -112,5 +117,15 @@ async def reprocess(raw_id: int, session: AsyncSession = Depends(db_session)) ->
     if cluster_id_row is None:
         raise HTTPException(status_code=409, detail="not yet clustered")
     cluster_id = int(cluster_id_row[0])
-    await EnrichmentService(session)._enrich_cluster(cluster_id, raw_id)  # noqa: SLF001
-    return {"status": "reprocessed"}
+
+    # Enrichment makes several LLM round-trips; run it off the request path with its
+    # own session so a pooled request connection isn't pinned for seconds of latency.
+    async def _run() -> None:
+        async with SessionLocal() as bg_session:
+            try:
+                await EnrichmentService(bg_session)._enrich_cluster(cluster_id, raw_id)  # noqa: SLF001
+            except Exception as e:  # noqa: BLE001
+                log.error("reprocess.enrich_failed", raw_id=raw_id, cluster_id=cluster_id, err=str(e))
+
+    background.add_task(_run)
+    return {"status": "scheduled"}

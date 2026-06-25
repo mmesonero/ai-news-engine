@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends
 from pydantic import BaseModel
 
+from app.api.deps import require_admin
 from app.logging_config import get_logger
 from app.pipeline.daily import run_daily_pipeline
 from app.pipeline.retention import run_retention
 
-router = APIRouter()
+# All admin routes require the admin token when one is configured (see require_admin).
+router = APIRouter(dependencies=[Depends(require_admin)])
 log = get_logger(__name__)
 
 _lock = asyncio.Lock()

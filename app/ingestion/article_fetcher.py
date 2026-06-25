@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 from bs4.element import Tag
 
 from app.logging_config import get_logger
+from app.url_safety import safe_get
 
 log = get_logger(__name__)
 
@@ -52,7 +53,6 @@ async def fetch_article_body(url: str, *, max_chars: int = 12000, timeout: float
     """Fetch the URL and return the best-guess article body, or None if extraction failed."""
     try:
         async with httpx.AsyncClient(
-            follow_redirects=True,
             timeout=timeout,
             headers={
                 "User-Agent": (
@@ -61,7 +61,8 @@ async def fetch_article_body(url: str, *, max_chars: int = 12000, timeout: float
                 )
             },
         ) as client:
-            resp = await client.get(url)
+            # safe_get validates the URL + every redirect hop is a public host (SSRF guard).
+            resp = await safe_get(client, url)
             resp.raise_for_status()
     except Exception as e:
         log.warning("augment.fetch_failed", url=url, err=str(e))

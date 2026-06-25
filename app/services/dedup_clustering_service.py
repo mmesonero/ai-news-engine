@@ -45,65 +45,71 @@ class DedupClusteringService:
             # Skip — its cluster is already correct.
             if await self.cluster_repo.cluster_for(raw_id) is not None:
                 continue
-            emb = await self.emb_repo.get_for(raw_id)
-            if emb is None:
-                continue
-            neighbours = await self.emb_repo.nearest_within(
-                vector=list(emb.embedding),
-                lookback_days=settings.dedup_lookback_days,
-                limit=5,
-                exclude_id=raw_id,
-            )
-            attached = False
-            for nb_emb, sim in neighbours:
-                if sim >= settings.dedup_threshold:
-                    # Exact-story duplicate — attach to neighbour's cluster.
-                    cluster = await self.cluster_repo.cluster_for(nb_emb.raw_content_id)
-                    if cluster is None:
-                        cluster = await self.cluster_repo.create(
-                            representative_id=nb_emb.raw_content_id
-                        )
-                        await self.cluster_repo.attach(
-                            cluster_id=cluster.id,
-                            raw_content_id=nb_emb.raw_content_id,
-                            similarity=1.0,
-                        )
-                    await self.cluster_repo.attach(
-                        cluster_id=cluster.id,
-                        raw_content_id=raw_id,
-                        similarity=sim,
-                    )
-                    result.duplicates += 1
-                    result.attached_to_existing += 1
-                    attached = True
-                    break
-                if sim >= settings.cluster_threshold:
-                    # Related — same cluster, different angle.
-                    cluster = await self.cluster_repo.cluster_for(nb_emb.raw_content_id)
-                    if cluster is None:
-                        cluster = await self.cluster_repo.create(
-                            representative_id=nb_emb.raw_content_id
-                        )
-                        await self.cluster_repo.attach(
-                            cluster_id=cluster.id,
-                            raw_content_id=nb_emb.raw_content_id,
-                            similarity=1.0,
-                        )
-                    await self.cluster_repo.attach(
-                        cluster_id=cluster.id,
-                        raw_content_id=raw_id,
-                        similarity=sim,
-                    )
-                    result.attached_to_existing += 1
-                    attached = True
-                    break
-            if not attached:
-                cluster = await self.cluster_repo.create(representative_id=raw_id)
-                await self.cluster_repo.attach(
-                    cluster_id=cluster.id, raw_content_id=raw_id, similarity=1.0
+            try:
+                emb = await self.emb_repo.get_for(raw_id)
+                if emb is None:
+                    continue
+                neighbours = await self.emb_repo.nearest_within(
+                    vector=list(emb.embedding),
+                    lookback_days=settings.dedup_lookback_days,
+                    limit=5,
+                    exclude_id=raw_id,
                 )
-                result.new_clusters += 1
-            await self.session.commit()
+                attached = False
+                for nb_emb, sim in neighbours:
+                    if sim >= settings.dedup_threshold:
+                        # Exact-story duplicate — attach to neighbour's cluster.
+                        cluster = await self.cluster_repo.cluster_for(nb_emb.raw_content_id)
+                        if cluster is None:
+                            cluster = await self.cluster_repo.create(
+                                representative_id=nb_emb.raw_content_id
+                            )
+                            await self.cluster_repo.attach(
+                                cluster_id=cluster.id,
+                                raw_content_id=nb_emb.raw_content_id,
+                                similarity=1.0,
+                            )
+                        await self.cluster_repo.attach(
+                            cluster_id=cluster.id,
+                            raw_content_id=raw_id,
+                            similarity=sim,
+                        )
+                        result.duplicates += 1
+                        result.attached_to_existing += 1
+                        attached = True
+                        break
+                    if sim >= settings.cluster_threshold:
+                        # Related — same cluster, different angle.
+                        cluster = await self.cluster_repo.cluster_for(nb_emb.raw_content_id)
+                        if cluster is None:
+                            cluster = await self.cluster_repo.create(
+                                representative_id=nb_emb.raw_content_id
+                            )
+                            await self.cluster_repo.attach(
+                                cluster_id=cluster.id,
+                                raw_content_id=nb_emb.raw_content_id,
+                                similarity=1.0,
+                            )
+                        await self.cluster_repo.attach(
+                            cluster_id=cluster.id,
+                            raw_content_id=raw_id,
+                            similarity=sim,
+                        )
+                        result.attached_to_existing += 1
+                        attached = True
+                        break
+                if not attached:
+                    cluster = await self.cluster_repo.create(representative_id=raw_id)
+                    await self.cluster_repo.attach(
+                        cluster_id=cluster.id, raw_content_id=raw_id, similarity=1.0
+                    )
+                    result.new_clusters += 1
+                await self.session.commit()
+            except Exception as e:  # noqa: BLE001
+                # One bad candidate must not poison the session for the rest of the
+                # stage; roll back and move on (idempotent re-run resolves it later).
+                await self.session.rollback()
+                log.warning("dedup.candidate_failed", raw_id=raw_id, err=str(e)[:200])
         log.info(
             "dedup.done",
             new_clusters=result.new_clusters,

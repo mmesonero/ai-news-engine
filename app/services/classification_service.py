@@ -18,6 +18,12 @@ log = get_logger(__name__)
 
 _MAX_BODY = 6000
 
+# Closed set of valid themes (ARCHITECTURE.md §8). Any off-list value the model
+# returns is bucketed to "other" rather than being stored/rendered verbatim.
+_VALID_THEMES = {
+    "models", "tools", "features", "business", "cases", "insights", "tutorials", "other",
+}
+
 
 class ClassificationService:
     """Single-LLM-call noise filter. Skips items that already have processed rows."""
@@ -46,18 +52,35 @@ class ClassificationService:
                 log.warning("classify.failed", raw_id=raw.id, err=str(e))
                 continue
 
+            if not payload:
+                # Fail closed: an empty/invalid classifier payload (json_completion
+                # returns {} on a decode failure or empty content) must NOT slip
+                # through as a publishable default "medium" — treat it as noise.
+                log.warning("classify.empty_payload", raw_id=raw.id)
+                payload = {"category": "noise", "reasoning": "empty classifier payload"}
+
             category = (payload.get("category") or "medium").lower()
             theme = (payload.get("theme") or "").lower() or None
             importance_tier = (payload.get("importance_tier") or "").lower() or None
             if theme == "irrelevant":
                 category = "noise"
+            elif theme is not None and theme not in _VALID_THEMES:
+                theme = "other"
             if importance_tier not in {"high", "medium", "low"}:
                 importance_tier = None
             is_noise = category == "noise"
+            # Coerce free-form model tags to a bounded list of clean strings: drop
+            # non-strings, cap length + count. key_topics feed clustering + player
+            # tagging, so unvalidated junk here corrupts both (and could break joins).
+            key_topics = [
+                str(t).strip()[:50]
+                for t in (payload.get("tags") or [])
+                if isinstance(t, (str, int, float)) and str(t).strip()
+            ][:12]
             processed = ProcessedContent(
                 raw_content_id=raw.id,
                 cleaned_summary=None,
-                key_topics=payload.get("tags", []) or [],
+                key_topics=key_topics,
                 is_noise=is_noise,
                 rejected_reason=payload.get("reasoning") if is_noise else None,
                 ai_generated_insights={"classification": payload},
@@ -86,7 +109,11 @@ async def backfill_players(session: AsyncSession) -> int:
     for proc, title in rows.all():
         # players_for enforces the fidelity rule: title + key_topics only, never
         # the summary (passing mentions caused false tags). See app/ai/players.py.
-        players = players_for(title, proc.key_topics)
+        try:
+            players = players_for(title, proc.key_topics)
+        except Exception as e:  # noqa: BLE001 — one bad row must not drop the stage
+            log.warning("players.row_failed", raw_id=proc.raw_content_id, err=str(e)[:160])
+            continue
         if players != (proc.players or []):
             proc.players = players
             changed += 1

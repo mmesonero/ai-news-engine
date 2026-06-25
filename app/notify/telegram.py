@@ -90,19 +90,27 @@ async def _post(client: httpx.AsyncClient, method: str, payload: dict) -> dict |
         return None
 
 
+def _message_id(data: dict | None) -> int | None:
+    """Defensively pull result.message_id from a Telegram OK response.
+    Returns None (instead of raising KeyError) on a malformed/unexpected shape."""
+    mid = ((data or {}).get("result") or {}).get("message_id")
+    return int(mid) if mid is not None else None
+
+
 async def _send_one(client: httpx.AsyncClient, text: str, image_url: str | None = None) -> int | None:
     """Send a photo (with caption) when an image is available, else a text message.
     Falls back to text if the photo send fails. Returns the message_id or None."""
     if image_url:
         data = await _post(client, "sendPhoto", {"photo": image_url, "caption": text, "parse_mode": "HTML"})
-        if data:
-            return int(data["result"]["message_id"])
+        mid = _message_id(data)
+        if mid is not None:
+            return mid
         # photo failed (bad/blocked image) → fall back to a text message
     data = await _post(
         client, "sendMessage",
         {"text": text, "parse_mode": "HTML", "disable_web_page_preview": True},
     )
-    return int(data["result"]["message_id"]) if data else None
+    return _message_id(data)
 
 
 async def _edit_one(client: httpx.AsyncClient, message_id: int, text: str, is_photo: bool) -> bool:
@@ -232,6 +240,9 @@ async def update_boosted_stories(session: AsyncSession, max_edits: int = 30) -> 
         .where(ContentCluster.telegram_message_id.isnot(None))
         .group_by(ContentCluster.id, RawContent.id, ProcessedContent.id)
         .having(func.count(func.distinct(RawContent.source_id)) > ContentCluster.telegram_sources)
+        # Deterministic order so a >max_edits backlog can't starve the same posts
+        # run after run: most-sourced (biggest boost) first, then stable by id.
+        .order_by(sources.desc(), ContentCluster.id.asc())
         .limit(max_edits)
     )
     rows = (await session.execute(stmt)).all()

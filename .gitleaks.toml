@@ -7,11 +7,12 @@ useDefault = true
 
 [allowlist]
 description = "Things that look like secrets but are not"
+# Only exempt files that legitimately contain placeholder patterns. Docs
+# (README/ARCHITECTURE) are NOT whole-file exempt — a real key pasted there must
+# still be caught; allow specific placeholder strings via `regexes` instead.
 paths = [
     '''\.env\.example$''',     # template file with placeholders
     '''\.gitleaks\.toml$''',
-    '''ARCHITECTURE\.md$''',
-    '''README\.md$''',
 ]
 regexes = [
     '''sk-replace-me''',         # placeholder in .env.example
