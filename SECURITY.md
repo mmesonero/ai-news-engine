@@ -10,11 +10,14 @@ desarrollo. Reglas:
 | --- | --- | --- |
 | `OPENAI_API_KEY` | GitHub Actions secret (+ `.env` local) | key de Project con budget mensual |
 | `DATABASE_URL` / `SYNC_DATABASE_URL` | GitHub Actions secret | Neon; nunca en repo |
-| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | GitHub Actions secret | bot admin **solo "post messages"** |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` / `LINKEDIN_DRAFT_CHAT_ID` | GitHub Actions secret | bot admin **solo "post messages"**; el chat id no es sensible |
 | `PAGES_TOKEN` | GitHub Actions secret | PAT fine-grained, `Contents: read+write` solo en el repo del portfolio |
+| `BREVO_API_KEY` / `BREVO_LIST_ID` | GitHub Actions secret | newsletter por API; el list id no es sensible |
+| `EMAIL_FROM` (+ `EMAIL_HOST`/`USER`/`PASSWORD`/`TO` si SMTP) | GitHub Actions secret | remitente verificado / fallback SMTP |
 
 - Las migraciones y escrituras contra la BBDD cloud corren **solo dentro de Actions**.
 - El bot de Telegram es admin con **solo** permiso de publicar: borrar/banear/añadir-admins/editar-info **OFF**. Un token filtrado solo podría spamear, no destruir.
+- **Brevo**: la restricción "IPs autorizadas → para claves API" está **desactivada** (los runners de Actions usan IPs dinámicas no whitelistables). La defensa es que la API key vive solo en Secrets y es rotable; el daño máximo de una fuga = enviar emails/leer contactos, capado por el límite del plan. El formulario de la web NO expone la key (POST a `sibforms.com/serve`, no a la API).
 - Defensa contra prompt-injection en cada llamada LLM (sanitize + `INJECTION_GUARD` + validación de enums) — ver `ARCHITECTURE.md` §9.
 
 ---

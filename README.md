@@ -1,6 +1,8 @@
 # AI News Intelligence Engine
 
-A fully cloud-hosted, autonomous pipeline that ingests AI/tech news, removes noise, semantically deduplicates and clusters overlapping stories, writes a concise Spanish briefing, and delivers it to **Telegram** and a **static web page** — with zero dependency on a local machine.
+A fully cloud-hosted, autonomous pipeline that ingests AI/tech news, removes noise, semantically deduplicates and clusters overlapping stories, writes a concise **English** briefing, and delivers it across four channels — **Telegram**, a **static web page**, a **weekly email newsletter**, and **LinkedIn post drafts** — with zero dependency on a local machine.
+
+> Everything is in English (content, web/Telegram/email chrome, internal enums) **except** the LinkedIn drafts, which are written in Spanish (template + on-the-fly translation), and the Spanish-spam detection regex in `topic_filter.py`.
 
 **See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the full design.**
 
@@ -12,14 +14,18 @@ Everything runs on free, managed infrastructure. No server, no laptop, no Docker
 
 | Concern | Service |
 | --- | --- |
-| Scheduler + compute | **GitHub Actions** cron (`.github/workflows/daily.yml`) — twice a day |
+| Scheduler + compute | **GitHub Actions** cron — `daily.yml` (twice a day) + `weekly_email.yml` (Sunday) |
 | Database | **Neon** PostgreSQL + `pgvector` (free tier) |
 | LLM + embeddings + audio | **OpenAI** (`gpt-4o-mini`, `text-embedding-3-small`, `gpt-4o-transcribe`) |
-| Delivery — push | **Telegram** (one message per story, to a private channel) |
-| Delivery — web | **GitHub Pages** static page at `mmesonero.github.io/ai-news` |
+| Delivery — push | **Telegram** (one message per story, boosted score ≥ `TELEGRAM_MIN_SCORE`) |
+| Delivery — web | **GitHub Pages** static page at `mmesonero.github.io/ai-news` (with a Brevo subscribe form) |
+| Delivery — email | **Brevo** weekly newsletter campaign to the subscriber list (SMTP fallback) |
+| Delivery — LinkedIn | ready-to-paste **Spanish drafts** sent to Telegram for manual approval (no LinkedIn API) |
 
-The pipeline targets **~06:00 and ~17:00 Spain** (morning + afternoon). GitHub cron is best-effort, so each window has a primary + backup shot at odd minutes (the run is idempotent and only sends not-yet-notified stories, so backups don't spam). Each run:
-ingests → embeds → dedups/clusters → LLM-merges borderline stories → classifies → enriches (Spanish) → tags players → fetches images → sends/edits Telegram → publishes the web data → prunes old rows.
+The daily pipeline targets **~05:00 and ~17:00 Spain** (morning + afternoon). GitHub cron is best-effort, so each window has a primary + backup shot at odd minutes (the run is idempotent and only sends not-yet-notified stories, so backups don't spam). Each run:
+ingests → embeds → dedups/clusters → LLM-merges borderline stories → classifies → enriches (English) → tags players → fetches images → sends/edits Telegram → drafts a LinkedIn "breaking" post if a story is big enough → publishes the web data → prunes old rows.
+
+`weekly_email.yml` runs Sunday morning: it sends the **email newsletter** (Brevo campaign to the list) and a weekly **LinkedIn draft** to Telegram. Both are read-only against the DB.
 
 > The local Docker stack was removed — the project is cloud-native. The database on Neon is the only backup that matters; everything has been migrated there.
 
@@ -29,11 +35,20 @@ ingests → embeds → dedups/clusters → LLM-merges borderline stories → cla
 
 1. **Neon**: create a project, run `CREATE EXTENSION IF NOT EXISTS vector;` once.
 2. **GitHub → Settings → Secrets and variables → Actions**, add:
+
+   **Core (daily pipeline):**
    - `OPENAI_API_KEY`
    - `DATABASE_URL` — `postgresql+asyncpg://user:pass@host/db`
    - `SYNC_DATABASE_URL` — `postgresql+psycopg2://user:pass@host/db` (Alembic)
    - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
    - `PAGES_TOKEN` — fine-grained PAT with `Contents: read+write` on the portfolio repo (to publish the web page)
+
+   **Email newsletter (Brevo — `weekly_email.yml`):**
+   - `BREVO_API_KEY`, `BREVO_LIST_ID` (the contact-list id) — sends the campaign to the list. *(Brevo → Security → Authorised IPs → disable "for API keys" so GitHub Actions' dynamic IPs aren't blocked.)*
+   - `EMAIL_FROM` — a verified Brevo sender. *(Optional SMTP fallback to a fixed list: `EMAIL_HOST`, `EMAIL_USER`, `EMAIL_PASSWORD`, `EMAIL_TO`.)*
+
+   **LinkedIn drafts (optional):**
+   - `LINKEDIN_DRAFT_CHAT_ID` — your private Telegram chat with the bot (so drafts don't land on the public channel). Falls back to `TELEGRAM_CHAT_ID`.
 3. That's it. The cron runs on schedule; trigger manually any time from the **Actions** tab or:
 
 ```bash
@@ -74,11 +89,12 @@ npx serve .                                          # then open /ai-news/ (trai
 
 `mmesonero.github.io/ai-news` is **split** between two repos. Crossing the line breaks the design:
 
-- **`index.html`** — the custom portfolio design. Owned by the **portfolio repo**. The engine NEVER overwrites it.
-- **`data.js`** — engine output: `window.__NEWS = {now, data:[...]}` in the index's schema. The index reads it (falls back to an embedded sample if absent).
+- **`index.html`** — the custom portfolio design (incl. the **Brevo subscribe forms** that POST to the contact list via a hidden iframe, no API key exposed). Owned by the **portfolio repo**. The engine NEVER overwrites it.
+- **`data.js`** — engine output: `window.__NEWS = {now, data:[...]}` (recent 90 days) in the index's schema. The index reads it (falls back to an embedded sample if absent).
+- **`data-archive.js`** — `window.__NEWS_ARCHIVE`, everything older; lazy-loaded by the index only when the user picks the "All" range.
 - **`n/<slug>.html`** — engine per-story detail pages. `slug = sha1(rep_url)[:12]`. Both the web card titles and the Telegram links point here.
 
-The publish step copies **only** `data.js` + `n/` into the portfolio repo — never `index.html`.
+The publish step copies **only** `data.js`, `data-archive.js` + `n/` into the portfolio repo — never `index.html`.
 
 ---
 
@@ -97,14 +113,17 @@ app/
   export/       static_site.py — index data.js + per-story detail pages
   ingestion/    Source fetchers (RSS/HTML/YouTube) + image + transcript extraction
   models/       SQLAlchemy ORM models
-  notify/       Telegram delivery (per-story send + live edit on new sources)
+  notify/       telegram.py (per-story send + live edit) · email_digest.py (Brevo/SMTP weekly newsletter) · linkedin_draft.py (weekly + breaking drafts → Telegram, Spanish)
   pipeline/     daily.py orchestration + retention cleanup
   repositories/ Data access layer
   schemas/      Pydantic DTOs
   scheduler/    APScheduler bootstrap (local only; the cloud uses GitHub Actions cron)
   seeds/        Source catalog
   services/     Business logic (dedup/clustering, LLM merge, classify, enrich)
-.github/workflows/daily.yml   ← the cloud scheduler
+.github/workflows/
+  daily.yml          ← daily pipeline (cron + Telegram + LinkedIn breaking + publish)
+  weekly_email.yml   ← Sunday: Brevo email newsletter + weekly LinkedIn draft
+  retranslate.yml    ← manual: re-enrich/re-score all stories (used for the EN migration)
 ```
 
 See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the why behind each layer and [`SECURITY.md`](./SECURITY.md) for secret handling.

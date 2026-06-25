@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.5.0] — 2026-06-24 — English everywhere, email newsletter, LinkedIn drafts
+
+The project went fully English, gained two new delivery channels (email + LinkedIn drafts), and let the public subscribe from the web.
+
+### Added — email newsletter (`app/notify/email_digest.py`, `weekly_email.yml`)
+- **Brevo campaign** transport (preferred): creates + `sendNow`s a campaign to the contact list, with Brevo's compliant 1-click unsubscribe (`{{ unsubscribe }}`). **SMTP fallback** (Gmail/Resend/Brevo SMTP) to a fixed `EMAIL_TO` list when only `EMAIL_*` is set. Fail-loud (red run on send error).
+- Magazine-style HTML (gray page + white card, dark wordmark, gold accents, uniform per-story cards, preheader, `List-Unsubscribe`). Read-only — same `_gather()` set as the web (top 10 + extra `high`, cap 15).
+- **Web subscribe forms** (portfolio `index.html`): popup + section now POST to Brevo's `sibforms.com/serve` endpoint via a hidden iframe (no reload, no API key exposed); new subscribers land in the list the newsletter sends to.
+
+### Added — LinkedIn drafts (`app/notify/linkedin_draft.py`)
+- Copy-paste, **no LinkedIn API**: posts are written and sent to Telegram (`LINKEDIN_DRAFT_CHAT_ID`) as a `<pre>` copy-block + first-comment line for manual approval.
+- **weekly** (reuses the email `_gather()`, top 5, headline + paragraph) + **breaking** (every story boosted ≥ `LINKEDIN_MIN_SCORE` 85, once each via `content_clusters.linkedin_drafted_at`; hooked into the daily pipeline).
+- **Spanish** drafts: Spanish template + on-the-fly `gpt-4o-mini` translation (falls back to English). Bold titles via Mathematical Sans-Serif Bold (accents dropped, ñ kept). No em/en dashes.
+
+### Changed — English everywhere (migration 0010)
+- Content (enrichment now prompts for English), web/Telegram/email chrome, AND internal enums: `theme` keys `models/tools/features/business/cases/insights/tutorials/other` (+ `irrelevant`), `importance_tier` `high/medium/low`. Migration 0010 remapped existing rows in place; `retranslate.yml` re-enriched/re-scored the back catalogue.
+- Telegram: English chrome, summaries clipped at a sentence boundary, push gated at boosted ≥ `TELEGRAM_MIN_SCORE` (65). Importance scoring reworked (additive 5-factor, player weight scales with count, anti-rounding).
+- Copy: UI label "stories" → "news"; all em/en dashes removed from email + Telegram templates, titles and summaries (hyphens like `GPT-4` kept).
+- Morning pipeline window moved 1h earlier (02:47/03:17 UTC).
+
+### Added — robustness
+- Migration **0011** (`content_clusters.linkedin_drafted_at`).
+- `config.py` `field_validator` coerces blank int secrets (empty GitHub secret → `""`) back to defaults so an unset secret never crashes startup.
+
+### Ops
+- Brevo "Authorised IPs → for API keys" disabled so GitHub Actions' dynamic IPs can call the API (security tradeoff accepted; key stays in Secrets).
+
 ## [0.4.0] — 2026-06-16 — Web integration, permanent archive, paginated history
 
 The custom portfolio web page now renders real engine data, the detail pages
