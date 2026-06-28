@@ -221,9 +221,14 @@ matters (the concrete implication for the reader), not just describe. Hedge extr
 - Single anecdote / case study with no systemic data -> cap 50
 - Opinion with no data, even from a named pundit -> cap 55
 - Pure "Introducing/Announcing X" with no comparison or number -> cap 55
-- Incremental feature/product update to an existing tool ("X adds Y", "new features
-  in update", theme=features) with NO new capability that was impossible before -> cap 62.
-  These are routine; they can rank mid-pack but never above genuine model/deal/policy news.
+- Feature/product update to an existing tool ("X adds Y", "new features in update",
+  theme=features): score = size-of-improvement x company tier, NOT a flat number.
+  -> cap 50 when it's a MINOR/incremental improvement from a non-heavyweight (e.g. a
+     tier-2 tool like Figma/Notion/Canva adding convenience features). "Meh" = low.
+  -> NO special cap (judge on the 5 factors, can go high) ONLY if it adds a genuinely
+     NEW capability that was impossible before, OR a heavyweight (OpenAI/Google/Anthropic/
+     Meta/Microsoft/Apple/NVIDIA) is making a field-defining move.
+  A routine feature update must never outrank real model/deal/policy news.
 
 linkedin_potential: same scale but weighted toward "would a thoughtful person disagree?"
   - High only if there's a real claim someone can argue against.
