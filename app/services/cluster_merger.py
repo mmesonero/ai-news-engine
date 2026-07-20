@@ -17,7 +17,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, func, select, text, update
+from sqlalchemy import delete, func, select, text, tuple_, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.openai_client import json_completion
@@ -35,6 +36,7 @@ from app.models.cluster import ClusterItem, ContentCluster
 from app.models.embedding import Embedding
 from app.models.processed_content import ProcessedContent
 from app.models.raw_content import RawContent
+from app.models.same_event_verdict import SameEventVerdict
 
 log = get_logger(__name__)
 
@@ -105,13 +107,24 @@ class ClusterMergerService:
             log.info("merge.no_pairs")
             return stats
 
-        log.info("merge.candidates", count=len(pairs), cosine=len(cosine_pairs), entity=len(entity_pairs))
+        # Preload memoized same-event verdicts for these candidate pairs. A fixed
+        # article pair's verdict is stable, so a cache hit skips the LLM call —
+        # this is where the token saving comes from (the same borderline pairs
+        # recur every run for the full 14-day window).
+        cached = await self._load_cached_verdicts(pairs)
+
+        log.info(
+            "merge.candidates",
+            count=len(pairs), cosine=len(cosine_pairs),
+            entity=len(entity_pairs), cached=len(cached),
+        )
         # Union-find redirect map: a merged-away cluster points at its survivor.
         # The pair list is computed once up front, so as we delete clusters we
         # must resolve every pair's endpoints to their current surviving root
         # before touching the DB — otherwise we'd re-point items into a cluster
         # that an earlier merge already deleted (FK violation).
         redirect: dict[int, int] = {}
+        cache_hits = 0
 
         def root(cid: int) -> int:
             seen: list[int] = []
@@ -126,20 +139,64 @@ class ClusterMergerService:
             ra, rb = root(cluster_a), root(cluster_b)
             if ra == rb:
                 continue  # already in the same cluster via a prior merge
-            stats.pairs_evaluated += 1
-            try:
-                same = await self._llm_same_event(item_a, item_b)
-            except Exception as e:
-                log.warning("merge.llm_failed", err=str(e))
-                continue
+            key = (item_a, item_b) if item_a < item_b else (item_b, item_a)
+            if key in cached:
+                same = cached[key]
+                cache_hits += 1
+            else:
+                stats.pairs_evaluated += 1
+                try:
+                    same, cacheable = await self._llm_same_event(item_a, item_b)
+                except Exception as e:
+                    log.warning("merge.llm_failed", err=str(e))
+                    continue
+                # Only memoize once BOTH sides are enriched (have a summary).
+                # Merge runs before enrichment, so an early title-only verdict
+                # must stay re-judgeable until the summaries exist.
+                if cacheable:
+                    await self._remember_verdict(key[0], key[1], same)
+                    cached[key] = same
             if not same:
                 continue
             await self._merge(ra, rb)
             redirect[rb] = ra  # rb no longer exists; resolve future refs to ra
             stats.pairs_merged += 1
             log.info("merge.merged", from_cluster=rb, into=ra, cosine=round(cosine, 3))
+        if cache_hits:
+            log.info("merge.cache_hits", hits=cache_hits, judged=stats.pairs_evaluated)
         await self.session.commit()
         return stats
+
+    async def _load_cached_verdicts(
+        self, pairs: list[tuple]
+    ) -> dict[tuple[int, int], bool]:
+        """Fetch stored verdicts for the (raw_low, raw_high) keys of `pairs`.
+        Returns {(low, high): same_event}. Missing pairs are simply absent."""
+        keys = {
+            (p[3], p[4]) if p[3] < p[4] else (p[4], p[3])
+            for p in pairs
+        }
+        if not keys:
+            return {}
+        rows = await self.session.execute(
+            select(
+                SameEventVerdict.raw_low_id,
+                SameEventVerdict.raw_high_id,
+                SameEventVerdict.same_event,
+            ).where(
+                tuple_(SameEventVerdict.raw_low_id, SameEventVerdict.raw_high_id).in_(list(keys))
+            )
+        )
+        return {(int(lo), int(hi)): bool(se) for lo, hi, se in rows.all()}
+
+    async def _remember_verdict(self, low: int, high: int, same: bool) -> None:
+        """Store a verdict; no-op if the pair is already cached (idempotent)."""
+        stmt = (
+            pg_insert(SameEventVerdict)
+            .values(raw_low_id=low, raw_high_id=high, same_event=same)
+            .on_conflict_do_nothing(index_elements=["raw_low_id", "raw_high_id"])
+        )
+        await self.session.execute(stmt)
 
     async def _find_borderline_pairs(self, limit: int) -> list[tuple]:
         """Find cluster pairs whose representative embeddings sit in the
@@ -296,7 +353,11 @@ class ClusterMergerService:
         log.info("merge.grouping_done", **stats.__dict__)
         return stats
 
-    async def _llm_same_event(self, raw_a_id: int, raw_b_id: int) -> bool:
+    async def _llm_same_event(self, raw_a_id: int, raw_b_id: int) -> tuple[bool, bool]:
+        """Judge whether two items are the same event. Returns (same_event,
+        cacheable) — `cacheable` is True only when BOTH sides already have a
+        cleaned_summary, so a stronger summary-based verdict is never locked out
+        by an earlier title-only one (merge runs before enrichment)."""
         # Fetch title + cleaned_summary (or title only) for each side.
         async def _payload(rid: int) -> tuple[str, str]:
             row = await self.session.execute(
@@ -313,7 +374,7 @@ class ClusterMergerService:
         tb, sb = await _payload(raw_b_id)
         # Skip blanks: two empty payloads could be judged "same" spuriously.
         if not ta.strip() or not tb.strip():
-            return False
+            return (False, False)
         result = await json_completion(
             system=INJECTION_GUARD + SAME_EVENT_V1_SYSTEM,
             user=SAME_EVENT_V1_USER.format(
@@ -325,7 +386,9 @@ class ClusterMergerService:
         same = bool(result.get("same_event", False))
         conf = (result.get("confidence") or "low").lower()
         # Only merge on high/medium confidence to avoid bad merges.
-        return same and conf in ("high", "medium")
+        verdict = same and conf in ("high", "medium")
+        cacheable = bool(sa.strip()) and bool(sb.strip())
+        return (verdict, cacheable)
 
     async def _merge(self, into_id: int, from_id: int) -> None:
         """Move all cluster_items from `from_id` into `into_id`, then drop the
