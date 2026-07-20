@@ -7,8 +7,9 @@ Create Date: 2026-07-20
 The cluster merger asks the LLM "same event?" for every borderline cluster pair
 in a 14-day window on every run (4×/day). The verdict for a fixed pair of
 articles never changes, so this table memoizes it keyed by the ordered
-raw_content id pair. Rows cascade-delete with their raw_content so retention
-prunes the cache for free.
+raw_content id pair. Rows cascade-delete if their raw_content is deleted; since
+retention only blanks (never deletes) raw_content, a sweep in the retention job
+prunes verdicts older than the borderline re-judge window.
 """
 from __future__ import annotations
 

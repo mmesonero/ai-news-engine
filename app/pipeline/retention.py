@@ -24,6 +24,7 @@ from app.database import SessionLocal
 from app.logging_config import configure_logging, get_logger
 from app.models.embedding import Embedding
 from app.models.raw_content import RawContent
+from app.models.same_event_verdict import SameEventVerdict
 
 log = get_logger(__name__)
 
@@ -31,6 +32,15 @@ log = get_logger(__name__)
 async def run_retention() -> dict[str, int]:
     cutoff = datetime.now(timezone.utc) - timedelta(days=settings.retention_days)
     log.info("retention.start", cutoff=cutoff.isoformat(), days=settings.retention_days)
+
+    # raw_content is never deleted (only blanked), so same_event_verdicts rows are
+    # never cascade-pruned. Drop verdicts older than the borderline re-judge window
+    # — they can never be read again, since merge only pairs representatives with
+    # fetched_at within dedup_lookback_days. Guard with max(...) so a short
+    # retention_days can't evict a verdict that is still queryable.
+    verdict_cutoff = datetime.now(timezone.utc) - timedelta(
+        days=max(settings.retention_days, settings.dedup_lookback_days)
+    )
 
     async with SessionLocal() as session:
         # Rows older than the window that still carry heavy data.
@@ -42,22 +52,23 @@ async def run_retention() -> dict[str, int]:
             )
         ).scalars().all()
 
-        if not target:
-            log.info("retention.nothing_to_prune")
-            return {"raw_pruned": 0}
-
         ids = [int(i) for i in target]
-        # Drop the heavy embedding + blank the body, but KEEP the row + processed +
-        # cluster. The story stays visible on the web/archive forever.
-        await session.execute(delete(Embedding).where(Embedding.raw_content_id.in_(ids)))
-        await session.execute(
-            update(RawContent)
-            .where(RawContent.id.in_(ids))
-            .values(raw_text="", embedding_pruned=True)
+        if ids:
+            # Drop the heavy embedding + blank the body, but KEEP the row +
+            # processed + cluster. The story stays visible on the archive forever.
+            await session.execute(delete(Embedding).where(Embedding.raw_content_id.in_(ids)))
+            await session.execute(
+                update(RawContent)
+                .where(RawContent.id.in_(ids))
+                .values(raw_text="", embedding_pruned=True)
+            )
+
+        verdicts = await session.execute(
+            delete(SameEventVerdict).where(SameEventVerdict.created_at < verdict_cutoff)
         )
         await session.commit()
 
-    metrics = {"raw_pruned": len(ids)}
+    metrics = {"raw_pruned": len(ids), "verdicts_pruned": verdicts.rowcount or 0}
     log.info("retention.done", **metrics)
     return metrics
 

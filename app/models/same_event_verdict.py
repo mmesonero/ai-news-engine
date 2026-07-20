@@ -16,8 +16,10 @@ class SameEventVerdict(Base):
     for two weeks. The verdict for a fixed pair of articles is stable, so we store
     it keyed by the ORDERED raw_content id pair (low, high) and skip re-judging.
 
-    Rows cascade-delete with their raw_content, so retention cleanup prunes the
-    cache automatically — no separate maintenance.
+    Rows cascade-delete IF their raw_content is ever deleted. Retention does not
+    delete raw_content (it only blanks the body), so stale verdicts are pruned by
+    an explicit sweep in `app.pipeline.retention` that drops entries older than the
+    borderline re-judge window.
     """
 
     __tablename__ = "same_event_verdicts"
