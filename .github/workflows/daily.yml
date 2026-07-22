@@ -52,8 +52,11 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       # Optional: where LinkedIn breaking DRAFTS go (your DM). Falls back to the chat above.
       LINKEDIN_DRAFT_CHAT_ID: ${{ secrets.LINKEDIN_DRAFT_CHAT_ID }}
-      TRANSCRIBE_BACKEND: openai
-      OPENAI_TRANSCRIBE_MODEL: gpt-4o-transcribe
+      # Video/audio transcription is OFF: all sources are text RSS now (YouTube
+      # sources were dropped to cut token spend). To re-enable, add a youtube
+      # source, set TRANSCRIBE_BACKEND=openai + OPENAI_TRANSCRIBE_MODEL, and
+      # restore the "Install ffmpeg" step below.
+      TRANSCRIBE_BACKEND: none
       RETENTION_DAYS: "14"   # dedup only needs 14d of history; keeps Neon free tier comfortable
       # Read the same way as weekly_email.yml so detail-page / Telegram / LinkedIn link
       # bases never diverge (falls back to the code default if the repo var is unset).
@@ -69,9 +72,9 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install ffmpeg (audio for transcription)
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
+      # No ffmpeg step: transcription is off (TRANSCRIBE_BACKEND=none above).
+      # Re-add `sudo apt-get update && sudo apt-get install -y ffmpeg` here if a
+      # youtube source ever comes back.
       - name: Install project (hash-pinned, reproducible)
         run: |
           python -m pip install --upgrade pip

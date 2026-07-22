@@ -2,6 +2,7 @@ from app.models.cluster import ClusterItem, ContentCluster
 from app.models.embedding import Embedding
 from app.models.processed_content import ProcessedContent
 from app.models.raw_content import RawContent
+from app.models.same_event_verdict import SameEventVerdict
 from app.models.source import Source
 
 __all__ = [
@@ -11,4 +12,5 @@ __all__ = [
     "ProcessedContent",
     "ContentCluster",
     "ClusterItem",
+    "SameEventVerdict",
 ]

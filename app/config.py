@@ -91,7 +91,9 @@ class Settings(BaseSettings):
 
     # Audio transcription (for videos without subtitles):
     #   "openai" → OpenAI transcription API   |   "none" → disabled
-    transcribe_backend: str = Field(default="openai")
+    # Default "none": YouTube sources were dropped to cut token spend, so there
+    # are no videos to transcribe. Set "openai" again only if YT sources return.
+    transcribe_backend: str = Field(default="none")
     whisper_max_per_run: int = Field(default=15, description="Cap transcription invocations per pipeline run.")
 
     embedding_dim: int = 1536

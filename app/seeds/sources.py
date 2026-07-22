@@ -1,11 +1,13 @@
 """Seed the initial source catalog. Idempotent — re-running is a no-op.
 
 Curated for signal density:
-  - OpenAI / Anthropic exposed via YouTube only (their blogs are PR-heavy).
-  - Google DeepMind Blog intentionally excluded (89 retrospective/PR posts
-    inflated rankings; their YT presence covers the news angle).
+  - TEXT-ONLY. YouTube sources were dropped to cut token spend: video
+    transcription (gpt-4o-transcribe), the per-video "worth transcribing"
+    gatekeeper LLM call, and transcript-length bodies were the pipeline's
+    biggest cost. Labs are now covered via their own RSS instead.
+  - OpenAI / Google(DeepMind) via native RSS. Anthropic has no native feed,
+    so it uses a keyless Google News query (best-effort, third-party coverage).
   - One source per outlet (TC AI vs TC general — keep AI vertical only).
-  - YouTube AI creators for early signals.
 """
 from __future__ import annotations
 
@@ -19,11 +21,20 @@ from app.repositories.source_repo import SourceRepository
 log = get_logger(__name__)
 
 DEFAULT_SOURCES: list[dict] = [
-    # --- AI LABS (YouTube only) ---
-    {"name": "OpenAI", "type": "youtube", "url": "@OpenAI",
-     "group_name": "OpenAI", "config_json": {"max_results": 8, "require_ai_topic": False}},
-    {"name": "Anthropic (Claude)", "type": "youtube", "url": "@claude",
-     "group_name": "Anthropic", "config_json": {"max_results": 5, "require_ai_topic": False}},
+    # --- AI LABS (native RSS) ---
+    {"name": "OpenAI", "type": "rss", "url": "https://openai.com/news/rss.xml",
+     "group_name": "OpenAI",
+     "config_json": {"fetch_full_text": True, "require_ai_topic": False}},
+    {"name": "Google AI / DeepMind", "type": "rss",
+     "url": "https://blog.google/technology/ai/rss/",
+     "group_name": "Google",
+     "config_json": {"fetch_full_text": True, "require_ai_topic": False}},
+    # Anthropic publishes no native RSS — keyless Google News query as best-effort.
+    # Third-party coverage (not the blog itself); dedup + classify handle the noise.
+    {"name": "Anthropic (Claude)", "type": "rss",
+     "url": "https://news.google.com/rss/search?q=anthropic%20claude%20when:7d&hl=en-US&gl=US&ceid=US:en",
+     "group_name": "Anthropic",
+     "config_json": {"require_ai_topic": True}},
 
     # --- AI VERTICALS (RSS) ---
     {"name": "TechCrunch AI", "type": "rss",
@@ -36,15 +47,6 @@ DEFAULT_SOURCES: list[dict] = [
      "config_json": {"fetch_full_text": True, "require_ai_topic": False}},
     {"name": "HuggingFace Blog", "type": "rss", "url": "https://huggingface.co/blog/feed.xml",
      "group_name": "HuggingFace", "config_json": {"require_ai_topic": False}},
-
-    # --- YOUTUBE AI CREATORS ---
-    {"name": "AI Explained", "type": "youtube", "url": "UCNJ1Ymd5yFuUPtn21xtRbbw",
-     "config_json": {"max_results": 5}},
-    {"name": "Two Minute Papers", "type": "youtube", "url": "UCbfYPyITQ-7l4upoX8nvctg",
-     "config_json": {"max_results": 5}},
-    {"name": "Inteligencia Artificial (ES)", "type": "youtube",
-     "url": "@la_inteligencia_artificial",
-     "config_json": {"max_results": 5}},
 ]
 
 
