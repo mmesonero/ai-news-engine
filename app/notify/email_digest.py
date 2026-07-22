@@ -28,6 +28,7 @@ from app.export.static_site import (
 )
 from app.links import detail_url
 from app.logging_config import configure_logging, get_logger
+from app.url_safety import safe_href
 
 log = get_logger(__name__)
 
@@ -109,16 +110,20 @@ def _render_email(items: list[dict], unsub_href: str | None = None) -> str:
     # Uniform cards — EVERY story rendered the same way (image shown if available).
     def _card(it):
         img = it.get("image_url")
+        # href/src carry feed-derived URLs: validate the scheme, then escape. Escaping
+        # alone leaves `javascript:`/`data:` intact, and an unescaped quote breaks out
+        # of the attribute entirely.
+        link = _esc(safe_href(detail_url(it["url"])))
         hero = (
-            f'<tr><td style="padding:0 0 12px;"><img src="{_esc(img)}" width="536" '
+            f'<tr><td style="padding:0 0 12px;"><img src="{_esc(safe_href(img))}" width="536" '
             f'style="display:block;width:100%;max-width:536px;height:auto;border-radius:12px;" alt=""></td></tr>'
         ) if img else ""
         return f"""
     <tr><td style="padding:0 0 8px;font:12px/1 Arial,sans-serif;color:{_MUTED};">{_meta_line(it)}</td></tr>
     {hero}
-    <tr><td style="padding:0 0 8px;"><a href="{detail_url(it["url"])}" style="font:700 19px/1.32 Arial,sans-serif;color:{_INK};text-decoration:none;letter-spacing:-.01em;">{_esc(_no_dash(it["title"]))}</a></td></tr>
+    <tr><td style="padding:0 0 8px;"><a href="{link}" style="font:700 19px/1.32 Arial,sans-serif;color:{_INK};text-decoration:none;letter-spacing:-.01em;">{_esc(_no_dash(it["title"]))}</a></td></tr>
     <tr><td style="padding:0 0 10px;font:300 14.5px/1.6 Arial,sans-serif;color:{_MUTED};">{_esc(_clip(_no_dash(it["summary"])))}</td></tr>
-    <tr><td style="font:12px/1 Arial,sans-serif;">{_email_players(it.get("players"))}<a href="{detail_url(it["url"])}" style="color:{_GOLD};font-weight:700;text-decoration:none;float:right;">Read →</a></td></tr>
+    <tr><td style="font:12px/1 Arial,sans-serif;">{_email_players(it.get("players"))}<a href="{link}" style="color:{_GOLD};font-weight:700;text-decoration:none;float:right;">Read →</a></td></tr>
     <tr><td style="padding:20px 0;"><div style="height:1px;background:#ece8dc;"></div></td></tr>"""
 
     cards = "".join(_card(it) for it in items)

@@ -7,7 +7,7 @@ from sqlalchemy import select
 from app.ai.openai_client import json_completion
 from app.ai.players import players_for
 from app.ai.prompts import CLASSIFY_NOISE_V1_SYSTEM, CLASSIFY_NOISE_V1_USER, INJECTION_GUARD
-from app.ai.sanitize import neutralize, wrap
+from app.ai.sanitize import wrap_article
 from app.logging_config import get_logger
 from app.models.processed_content import ProcessedContent
 from app.models.raw_content import RawContent
@@ -42,9 +42,9 @@ class ClassificationService:
                 payload = await json_completion(
                     system=INJECTION_GUARD + CLASSIFY_NOISE_V1_SYSTEM,
                     user=CLASSIFY_NOISE_V1_USER.format(
-                        title=neutralize(raw.title, 500),
-                        url=neutralize(raw.url, 500),
-                        body=wrap(raw.raw_text, _MAX_BODY),
+                        article=wrap_article(
+                            title=raw.title, url=raw.url, body=raw.raw_text, max_body=_MAX_BODY
+                        ),
                     ),
                     temperature=0.0,
                 )

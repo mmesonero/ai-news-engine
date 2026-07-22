@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.1] — 2026-07-23 — Security audit fixes (XSS + prompt-injection hardening)
+
+Full audit ahead of making the repository public. Secrets, supply chain and SSRF came out clean; the findings below are the ones that needed code.
+
+### Fixed — stored XSS on the public site (critical)
+- `_data_payload()` emitted `title`, `sum` and every URL into `data.js` **unescaped**, and the portfolio index renders those through `innerHTML`. Two ways in: a feed-supplied URL (no LLM involved), or a prompt injection that made the model write markup into `title_es` / `cleaned_summary`. The published `data.js` was checked and was never exploited.
+- Fixed at all three layers: `safe_href()` on every URL leaving `_data_payload`, `clean_model_text()` on model free-text as it enters the DB, and `esc()` / `safeUrl()` / `num()` at the `innerHTML` sink in the portfolio index (the sink is where escaping has to happen, so that fix lives in the portfolio repo).
+
+### Fixed — prompt-injection fencing gaps
+- **Title and URL were outside the fence.** Only the article body went through `wrap()`; `neutralize()` caps and redacts but does not delimit, so feed-supplied titles sat in instruction space where `INJECTION_GUARD` — scoped to "text between the markers" — did not reach them. New `wrap_article()` / `wrap_fields()` fence every untrusted value, labels included. Applies to classify, enrich, LinkedIn angles, cluster topic, same-event judge and the video pre-filter.
+- **`neutralize()` deleted sentinels instead of replacing them**, so a nested payload (`[BEGIN [BEGIN UNTRUSTED UNTRUSTED`) could splice itself back into a live token. Now substitutes `[redacted]` and re-scans until stable.
+- **Model free-text was stored unvalidated.** Enums were checked against closed sets, `title_es` / `cleaned_summary` / cluster topic were not. `clean_model_text()` strips tag-like runs and control chars and caps length.
+
+### Fixed — email digest
+- `href`/`src` in the weekly digest went in unescaped while the adjacent text was escaped. Now `safe_href()` + `_esc()` like everywhere else.
+
+### Tests
+- New `tests/test_sanitize.py` (nesting, boundary forging, output scrubbing) and fencing assertions in `tests/test_prompts.py` that fail if any untrusted value drifts back outside the markers. 24 → 48 tests.
+
 ## [0.5.0] — 2026-06-24 — English everywhere, email newsletter, LinkedIn drafts
 
 The project went fully English, gained two new delivery channels (email + LinkedIn drafts), and let the public subscribe from the web.

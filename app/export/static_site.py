@@ -583,16 +583,19 @@ def _data_payload(items: list[dict], now: int) -> dict:
     data = []
     for it in items:
         ts = it["ts"] or now
+        # safe_href on every URL that ends up in an href: the index renders these into
+        # markup, and a feed-supplied `javascript:` URL is not neutralized by escaping.
+        # This is scheme validation, not encoding — the consumer still escapes.
         urls = [
-            {"label": s["name"], "href": s["url"]}
+            {"label": s["name"], "href": safe_href(s["url"])}
             for s in (it.get("sources_list") or [])
             if s.get("url")
         ]
         data.append(
             {
                 "title": it["title"] or "(untitled)",
-                "detail": detail_path(it["url"]),  # n/<slug>.html — click → detail (same as Telegram)
-                "url": it["url"],
+                "detail": safe_href(detail_path(it["url"])),  # n/<slug>.html — click → detail
+                "url": safe_href(it["url"]),
                 "theme": _INDEX_THEME.get(it["theme"], "other"),
                 "score": it["relevance"] or it["score"] or 0,  # cross-source boosted
                 "level": it["tier"] or "medium",  # "" → media so it shows by default

@@ -28,7 +28,7 @@ from app.ai.prompts import (
     SAME_EVENT_V1_SYSTEM,
     SAME_EVENT_V1_USER,
 )
-from app.ai.sanitize import neutralize, wrap
+from app.ai.sanitize import neutralize, wrap, wrap_fields
 from app.config import settings
 from app.logging_config import get_logger
 from app.models.cluster import ClusterItem, ContentCluster
@@ -331,8 +331,13 @@ class ClusterMergerService:
         result = await json_completion(
             system=INJECTION_GUARD + SAME_EVENT_V1_SYSTEM,
             user=SAME_EVENT_V1_USER.format(
-                title_a=neutralize(ta, 300), summary_a=neutralize(sa, 600) or "(no summary)",
-                title_b=neutralize(tb, 300), summary_b=neutralize(sb, 600) or "(no summary)",
+                items=wrap_fields(
+                    max_len=600,
+                    ITEM_A_TITLE=ta,
+                    ITEM_A_SUMMARY=sa or "(no summary)",
+                    ITEM_B_TITLE=tb,
+                    ITEM_B_SUMMARY=sb or "(no summary)",
+                ),
             ),
             temperature=0.0,
         )

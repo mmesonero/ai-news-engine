@@ -130,10 +130,7 @@ Most articles should be "low" or "medium". "high" is reserved for genuine top-of
 - Tags: 3-6 short lowercase topical tags (e.g. "openai", "rag", "series-b", "antitrust").
 
 Article:
-TITLE: {title}
-URL: {url}
-BODY:
-{body}
+{article}
 """
 
 
@@ -253,10 +250,7 @@ business_impact:
 - Journalism with named non-vendor sources → news (eligible for full range)
 
 Article:
-TITLE: {title}
-URL: {url}
-BODY:
-{body}
+{article}
 """
 
 
@@ -286,10 +280,8 @@ Constraints:
 - No emojis. No hashtags. No "In a world where..." openers.
 - Hooks must work as standalone first lines.
 
-Article title: {title}
-Summary: {summary}
-Enrichment insights JSON:
-{insights}
+Article:
+{article}
 """
 
 
@@ -307,6 +299,11 @@ Return JSON: {{"topic": "<name>"}}
 Article titles:
 {titles}
 """
+
+# Note on fencing: every {placeholder} above that carries feed-derived text is
+# substituted with an already-fenced value from app.ai.sanitize (wrap / wrap_fields
+# / wrap_article). Labels like TITLE:/URL:/BODY: live INSIDE that fence with the
+# data, so nothing attacker-influenceable sits in instruction space.
 
 
 # --------------------------------------------------------------------- #
@@ -357,8 +354,8 @@ When in doubt → accept. We have downstream filters.
 
 Output STRICT JSON, no prose."""
 
-VIDEO_WORTH_V1_USER = """Title: {title}
-Channel: {channel}
+VIDEO_WORTH_V1_USER = """Video:
+{video}
 
 Return JSON: {{"worth": <bool>, "reason": "<one short sentence>"}}
 """
@@ -424,13 +421,7 @@ Clusters:
 
 SAME_EVENT_V1_USER = """Are these two items reporting on the same underlying news event?
 
-Item A:
-TITLE: {title_a}
-SUMMARY: {summary_a}
-
-Item B:
-TITLE: {title_b}
-SUMMARY: {summary_b}
+{items}
 
 Return JSON:
 {{

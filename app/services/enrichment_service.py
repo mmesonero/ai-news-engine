@@ -15,7 +15,14 @@ from app.ai.prompts import (
     LINKEDIN_V1_SYSTEM,
     LINKEDIN_V1_USER,
 )
-from app.ai.sanitize import neutralize, wrap
+from app.ai.sanitize import (
+    OUT_TITLE_MAX,
+    clean_model_text,
+    neutralize,
+    wrap,
+    wrap_article,
+    wrap_fields,
+)
 from app.logging_config import get_logger
 from app.models.cluster import ClusterItem, ContentCluster
 from app.models.processed_content import ProcessedContent
@@ -83,16 +90,19 @@ class EnrichmentService:
         enrichment = await json_completion(
             system=INJECTION_GUARD + ENRICH_V1_SYSTEM,
             user=ENRICH_V1_USER.format(
-                title=neutralize(raw.title, 500),
-                url=neutralize(raw.url, 500),
-                body=wrap(raw.raw_text, _MAX_BODY),
+                article=wrap_article(
+                    title=raw.title, url=raw.url, body=raw.raw_text, max_body=_MAX_BODY
+                ),
             ),
             temperature=0.2,
         )
 
         scores = enrichment.get("scores", {})
         insights = enrichment.get("insights", {})
-        summary = enrichment.get("cleaned_summary")
+        # Free-text model output is published on the public site — scrub markup and
+        # control chars here, at the point it enters the DB, so no renderer downstream
+        # has to be trusted to do it. Enums/scores are validated separately below.
+        summary = clean_model_text(enrichment.get("cleaned_summary"))
         topics = enrichment.get("key_topics", [])
         content_type = enrichment.get("content_type")
         if content_type:
@@ -101,9 +111,12 @@ class EnrichmentService:
         linkedin = await json_completion(
             system=INJECTION_GUARD + LINKEDIN_V1_SYSTEM,
             user=LINKEDIN_V1_USER.format(
-                title=neutralize(raw.title, 500),
-                summary=neutralize(summary or "", 2000),
-                insights=neutralize(json.dumps(insights, ensure_ascii=False), 4000),
+                article=wrap_fields(
+                    TITLE=raw.title,
+                    SUMMARY=summary or "",
+                    INSIGHTS=json.dumps(insights, ensure_ascii=False),
+                    max_len=4000,
+                ),
             ),
             temperature=0.7,
         )
@@ -111,7 +124,7 @@ class EnrichmentService:
         await self.proc_repo.upsert_for(
             raw_content_id=representative_id,
             cleaned_summary=summary,
-            title_es=enrichment.get("title_es") or None,
+            title_es=clean_model_text(enrichment.get("title_es"), OUT_TITLE_MAX),
             key_topics=topics,
             novelty_score=_safe_int(scores.get("novelty")),
             importance_score=_safe_int(scores.get("importance")),
@@ -136,11 +149,11 @@ class EnrichmentService:
             payload = await json_completion(
                 system=INJECTION_GUARD + CLUSTER_TOPIC_V1_SYSTEM,
                 user=CLUSTER_TOPIC_V1_USER.format(
-                    titles="\n".join(f"- {neutralize(t, 300)}" for t in member_titles)
+                    titles=wrap("\n".join(f"- {neutralize(t, 300)}" for t in member_titles), 4000)
                 ),
                 temperature=0.2,
             )
-            topic = (payload.get("topic") or "").strip()
+            topic = clean_model_text(payload.get("topic"), OUT_TITLE_MAX) or ""
             if topic:
                 await self.cluster_repo.set_topic(cluster_id, topic)
         except Exception as e:

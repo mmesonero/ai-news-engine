@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from app.ai.openai_client import json_completion
 from app.ai.prompts import INJECTION_GUARD, VIDEO_WORTH_V1_SYSTEM, VIDEO_WORTH_V1_USER
-from app.ai.sanitize import neutralize
+from app.ai.sanitize import wrap_fields
 from app.ingestion.topic_filter import is_promo, matches_topic
 from app.logging_config import get_logger
 
@@ -45,7 +45,7 @@ async def gpt_worth_transcribing(title: str, channel: str | None) -> tuple[bool,
         payload = await json_completion(
             system=INJECTION_GUARD + VIDEO_WORTH_V1_SYSTEM,
             user=VIDEO_WORTH_V1_USER.format(
-                title=neutralize(title, 300), channel=neutralize(channel or "unknown", 120)
+                video=wrap_fields(max_len=300, TITLE=title, CHANNEL=channel or "unknown"),
             ),
             temperature=0.0,
         )
