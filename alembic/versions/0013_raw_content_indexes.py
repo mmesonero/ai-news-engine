@@ -1,8 +1,12 @@
 """index raw_content.fetched_at + partial index over un-pruned rows
 
-Revision ID: 0012
-Revises: 0011
+Revision ID: 0013
+Revises: 0012
 Create Date: 2026-06-25
+
+Renumbered 0012 -> 0013 when the hardening branch merged into main: both
+lineages had independently added a 0012, leaving alembic with two heads.
+same_event_verdict_cache keeps 0012 because production already applied it.
 
 fetched_at is filtered in nearly every query (retention, dedup nearest_within join,
 cluster_merger, telegram, trending, weekly_top, stats, static_site) but had no
@@ -15,8 +19,8 @@ from __future__ import annotations
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0012"
-down_revision = "0011"
+revision = "0013"
+down_revision = "0012"
 branch_labels = None
 depends_on = None
 
